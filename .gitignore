@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+*.new
+*.bak*
+LOCAL-NOTES.md
