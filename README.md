@@ -48,8 +48,11 @@ block.
 ```bash
 git clone https://github.com/smartguy0505/bittensor-mcp.git && cd bittensor-mcp
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python -I test_client.py
+.venv/bin/python -I -m unittest discover -s tests   # offline, no network
+.venv/bin/python -I test_client.py                  # against the live chain
 ```
+`tests/test_offline.py` checks the helpers, and `Chain` and the `subnets` tool with fakes, without a network.
+
 `test_client.py` opens a real stdio MCP session and checks:
 - the handshake;
 - every tool;

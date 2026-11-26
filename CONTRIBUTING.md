@@ -22,7 +22,8 @@ to the public Bittensor endpoints. The code is developed on 3.12.
 ```
 git clone https://github.com/smartguy0505/bittensor-mcp.git && cd bittensor-mcp
 python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
-.venv/bin/python -I test_client.py          # a few minutes; exit 0 = all checks passed
+.venv/bin/python -I -m unittest discover -s tests   # offline, a few seconds
+.venv/bin/python -I test_client.py                  # live chain, a few minutes; exit 0 = all checks passed
 ```
 
 To use it from Claude Code, see "Use with Claude Code" in the README.
@@ -32,6 +33,7 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 | file | what it is |
 |---|---|
 | `server.py` | the whole server, one file |
+| `tests/test_offline.py` | offline tests, no network: the helpers, and `Chain` and the `subnets` tool with fakes |
 | `test_client.py` | the end-to-end test: a real stdio MCP session against the live chain |
 | `requirements.txt` | the three pinned dependencies |
 
@@ -40,7 +42,7 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 | section | what it does |
 |---|---|
 | config | `BT_MCP_*` environment variables |
-| `Chain` | one lazy head client and one archive client, the historical-state check (`_proven`), `resolve_block`, and `run_at`, which turns errors into `ToolError` and reconnects once |
+| `Chain` | one lazy head client and one archive client, the historical-state check (`_proven`), `resolve_block`, and `run_at`, which turns errors into `ToolError`: an endpoint's refusal (`RpcPolicyError`) at once, other failures after one reconnect |
 | serialization | `jsonable` (SDK objects to JSON), `render` (the size cap, with notes on what was cut), `_table` (columns + rows) |
 | generic catalog tools | `chain_status`, `list_reads`, `describe_read`, `read` |
 | curated tools | `subnets` (with the flow-EMA age and the windowed net flow), `subnet`, `metagraph`, `neuron`, `account`, `hotkey` |
@@ -64,9 +66,11 @@ A change that breaks one of these needs a discussion first.
    window. A row that can't be measured is null, with the reason in the
    result, never 0.
 5. **Errors a caller can act on are `ToolError`,** with a message that says
-   what to change. Anything else is reported after one reconnect as "chain
-   request failed after reconnecting: ...". No tracebacks, and no raw SDK
-   objects (`<bittensor....>`, `object at 0x...`) in results.
+   what to change. An endpoint's refusal under its traffic policy is returned
+   at once, since asking again spends more of its budget. Anything else is
+   reported after one reconnect as "chain request failed after reconnecting:
+   ...". No tracebacks, and no raw SDK objects (`<bittensor....>`,
+   `object at 0x...`) in results.
 6. **Results stay under `BT_MCP_MAX_CHARS`.** Lists of rows are columnar
    tables, and what `render` cuts is noted under `truncated`.
 7. **`server.py` stays one file at the root that starts as
@@ -98,6 +102,16 @@ default or a dependency (`requirements.txt` pins exact versions).
 
 ## Tests
 
+There are two layers.
+
+`tests/test_offline.py` needs no network and runs in well under a second
+(importing the SDK takes a few more). It uses only `unittest`, with fakes
+for the chain: the retry and refusal paths of `Chain.run_at`,
+`resolve_block`, the historical-state check, `jsonable`, `render` under its
+cap, the flow-EMA age, every exclusion of the windowed net flow, and the
+`subnets` tool's sort order and pinned blocks. Add to it for any helper you
+change.
+
 `test_client.py` starts the server as a subprocess, talks to it over stdio, and
 checks:
 
@@ -123,7 +137,7 @@ What is expected of tests for a change:
 
 Before you open one:
 
-- [ ] `test_client.py` passes (say when you ran it)
+- [ ] the offline tests pass, and `test_client.py` passes (say when you ran it)
 - [ ] a check fails without the change (say how you checked)
 - [ ] nothing under "What must stay true" is broken
 - [ ] new figures are compared with a reference at a fixed block
@@ -155,7 +169,7 @@ default or a dependency; delete anything you did not make.
   run;
 - put text from the machine you run on into tracked files.
 
-**Before you say it is done:** run the suite; break your change and see a check
+**Before you say it is done:** run both test layers; break your change and see a check
 fail; read your own diff once more, as if someone else had written it; grep it
 for private text; list what you did not do or could not verify. Commits that an
 agent wrote carry a `Co-Authored-By` line.
@@ -168,8 +182,7 @@ starts one), or reconnect the client (`/mcp` in Claude Code).
 
 | what | where | how to tell that it works |
 |---|---|---|
-| rate-limit errors returned at once, not after a reconnect that spends more budget | `Chain.run_at` | a check that sees the error and no second request |
-| offline tests (no network) for the pure helpers, and CI that runs them | a `tests/` folder, `.github/workflows` | they fail when the helper is broken |
+| CI that runs the offline tests | `.github/workflows` | a green run on a clean machine |
 | the frozen-EMA label on `read("subnet_tao_flows")` too | `read` | the label appears for that read only |
 | why pool change and net flow differ | `_window_flow`, README | a reconciliation that closes at a fixed block |
 | a package with an entry point, while `python -I server.py` keeps working | `pyproject.toml` | `pip install` from git, then both ways start |

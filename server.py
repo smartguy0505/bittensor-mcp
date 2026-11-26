@@ -122,6 +122,8 @@ class Chain:
                     return fn(view), at
                 except ToolError:
                     raise
+                except bt.RpcPolicyError as e:  # the endpoint refused under its traffic policy: a reconnect spends more
+                    raise ToolError(_policy_message(e)) from e
                 except (ValueError, TypeError, KeyError) as e:  # bad input (SS58 checksum, u16 range, missing param)
                     raise ToolError(f"{type(e).__name__}: {e}") from e
                 except Exception as e:  # connection drop, timeout, decode failure: reconnect once
@@ -130,6 +132,14 @@ class Chain:
                     log.warning("chain call failed (%s: %s); reconnecting", type(e).__name__, e)
                     self._reset()
         raise AssertionError("unreachable")
+
+
+def _policy_message(e: Exception) -> str:
+    """An endpoint's refusal (rate limit, exhausted history budget), with what the caller can do about it."""
+    tags = ", ".join(f"{k}={v}" for k in ("policy", "reason", "retry_after") if (v := getattr(e, k, None)))
+    return (f"RpcPolicyError: {e}" + (f" ({tags})" if tags else "") + ". The endpoint refused under its traffic "
+            "policy and was not asked again: wait before retrying, and ask for less history (a later block, a "
+            "shorter flow_window).")
 
 
 chain = Chain()
