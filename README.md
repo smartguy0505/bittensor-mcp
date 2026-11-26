@@ -116,8 +116,9 @@ null row to its reason:
 
 Check (2026-11-23): at block 9,569,858 with 7,200- and 50,400-block windows, all 128 subnet rows matched an
 earlier SDK script. That script reads the same counter with the same formula, so this checks the tool's code, not what
-the counter means. A window that starts beyond finney's retention needs the archive endpoint, which
-rate-limits historical work, so long windows can fail with `RpcPolicyError`. A 1,200,000-block window (start before
+the counter means. A window that starts beyond finney's retention needs the archive endpoint. The public
+endpoints rate-limit historical work, so long windows can fail with `RpcPolicyError`; the server returns that at
+once, without asking again. A 1,200,000-block window (start before
 the freeze) measured no rows, as intended: 104 were excluded for the EMA reason, the rest as root or re-registered.
 
 ## License

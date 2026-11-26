@@ -124,8 +124,9 @@ checks:
   error.
 
 It needs the network and reads live chain state, so CI never runs it, and its
-numbers change from run to run. The archive endpoint limits historical work: after many history
-reads, it refuses with `RpcPolicyError ... budget_exhausted` for a while. Run
+numbers change from run to run. The public endpoints limit historical work: after many history
+reads, one refuses with `RpcPolicyError ... budget_exhausted` for a while (the error doesn't say which
+endpoint). Run
 the suite once per change, not in a loop.
 
 What is expected of tests for a change:
@@ -165,7 +166,7 @@ default or a dependency; delete anything you did not make.
 - load a wallet, read key files, or call anything that signs or submits;
 - make a test pass by weakening it: no looser checks, skips or retries. If an
   expectation is wrong, say why in the pull request;
-- run the live suite in a loop; the archive endpoint's budget is shared;
+- run the live suite in a loop; the endpoints' history budget is shared;
 - report a number you have not read from the chain, or a check you have not
   run;
 - put text from the machine you run on into tracked files.
