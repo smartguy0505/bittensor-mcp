@@ -20,7 +20,8 @@ That is one step on Claude Code 2.1.275 or later. On older versions, add the mar
 The plugin starts the server with `uvx bittensor-mcp==<version>`, so it needs [uv](https://docs.astral.sh/uv/) on your
 `PATH`. The first start downloads the package and its dependencies, which takes a few seconds. The server appears in
 `/mcp` as `plugin:bittensor-mcp:bittensor`. Each plugin version runs one published release; to move to a newer one,
-run `/plugin marketplace update smartguy0505` and then `/plugin update bittensor-mcp@smartguy0505`.
+run `/plugin marketplace update smartguy0505` and then `/plugin update bittensor-mcp@smartguy0505`, and restart
+Claude Code.
 
 ### With pip
 Python 3.10 to 3.14. Install it into its own environment; it pins exact versions of its dependencies.
@@ -51,8 +52,8 @@ besides `--version` and `--help`, and is configured with environment variables (
 | `chain_status` | Head block, finalized block, runtime spec version, block time, chain timestamp |
 | `subnets` | Every subnet as one table: name, symbol, alpha spot price, burn, neurons, tempo, the chain's TAO flow EMA per day (with its age; see below), and the pool (`pool_tao`, `pool_alpha`, `alpha_out`). Sortable, by pool size too. `flow_window` (in blocks) adds the real net TAO flow over that window, and `sort_by="net_flow"` ranks by it (default window 7200). |
 | `subnet` | One subnet: identity, owner, pool (tao_in, alpha_in, alpha_out), spot and moving price, registration settings, epoch position, all hyperparameters, neuron counts |
-| `metagraph` | A subnet's neurons as a columns + rows table: incentive, dividends, emission, stake, registration, last update, optional axon. Sort, page, filter by validators/miners/coldkey. |
-| `neuron` | One neuron by uid or hotkey, with its rank by incentive and by stake |
+| `metagraph` | A subnet's neurons as a columns + rows table: incentive, dividends, emission per epoch, stake, registration, last update, optional axon, and the subnet's tempo (its epoch length in blocks). Sort, page, filter by validators/miners/coldkey. |
+| `neuron` | One neuron by uid or hotkey, with its rank by incentive and by stake, and the subnet's tempo |
 | `account` | For a coldkey: free balance, stake positions, stake valued in TAO, owned hotkeys, identity |
 | `hotkey` | Owner coldkey, subnets and uids, delegate status and take, identity |
 | `list_reads` / `describe_read` / `read` | The SDK's full catalog of about 100 named read-only queries (staking, delegation, locks, crowdloans, weights, commitments…), runnable by name |
@@ -81,6 +82,13 @@ Units:
 - Plain integers returned by `read` are raw chain units: rao = 1e-9 TAO or alpha, u16 fractions /65535,
   U64F64 /2**64. `describe_read` documents each one.
 
+## Emission is per epoch, and epochs differ
+`metagraph` and `neuron` give each neuron's emission for the subnet's last epoch, in its alpha. An epoch is about
+`tempo` blocks, and tempo differs between subnets: at block 9,593,672, 125 of 130 subnets had 360 (about 72
+minutes), and subnet 19 had 7200 (about a day). Both results include `tempo`; per day is
+`emission_alpha_per_epoch x 7200 / tempo`. Checked at block 9,593,682: on subnets 4, 19 and 64 the neurons'
+emissions add up to 0.82 x tempo x the subnet's per-block `alpha_out_emission`; the rest is the owner's 18%.
+
 ## Historical reads are checked
 Some public finney backends keep only recent state. Asked about an older block, they return storage *defaults*
 instead of an error. So before any historical read, the server checks that `System.Number` at that block equals the
@@ -98,6 +106,10 @@ block.
 
 An unset or empty variable takes its default. A bad value (`BT_MCP_MAX_CHARS` that is not a whole number of at least
 2000, an unknown log level) stops the server at start with one line on stderr naming the variable.
+
+The plugin's server reads these variables too: set them in the environment Claude Code runs in. A bad value shows
+in `/mcp` as a failed connection, and Claude Code keeps the server's one-line reason in its MCP logs (on Linux,
+`~/.cache/claude-cli-nodejs/<project>/mcp-logs-plugin-bittensor-mcp-bittensor/`).
 
 A small cap shortens more than table rows. Below about 4,000, the `subnet` record loses fields, and at 2,000 a
 `net_flow` table also loses the last keys of its `net_flow` block. Each cut is listed under `truncated`.

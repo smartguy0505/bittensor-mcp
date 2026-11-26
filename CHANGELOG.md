@@ -6,6 +6,12 @@
   `/plugin install bittensor-mcp --marketplace smartguy0505/bittensor-mcp`. The plugin runs the published package
   with `uvx bittensor-mcp==0.1.2`; the package itself is unchanged.
 - README: what the server runs, sends and fetches, with every host it connects to.
+- `metagraph` and `neuron` results include the subnet's `tempo` and a `units` note. Emission is per epoch, and an
+  epoch is about `tempo` blocks, which differs between subnets (360 on most, 7200 on subnet 19), so emissions
+  from two subnets compare only per day: `emission_alpha_per_epoch x 7200 / tempo`.
+- Every tool has a title for clients to show.
+- README: the plugin's server reads the `BT_MCP_*` variables from Claude Code's environment; where Claude Code logs
+  a failed start; updates need a restart.
 
 ## 0.1.2 (2026-11-26)
 
