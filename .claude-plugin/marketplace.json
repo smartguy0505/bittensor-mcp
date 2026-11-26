@@ -1,0 +1,15 @@
+{
+  "name": "smartguy0505",
+  "description": "Plugins by Smart Guy: read-only Bittensor (TAO) chain data for Claude.",
+  "owner": {
+    "name": "Smart Guy",
+    "url": "https://github.com/smartguy0505"
+  },
+  "plugins": [
+    {
+      "name": "bittensor-mcp",
+      "source": "./",
+      "description": "Read-only Bittensor (TAO) chain data: subnets, pools, net TAO flow, metagraphs, neurons, accounts and chain reads at any block."
+    }
+  ]
+}

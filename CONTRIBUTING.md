@@ -38,6 +38,9 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 | `server.py` | the launcher for a checkout: `python -I server.py` |
 | `pyproject.toml` | the package: name, the command, the three pinned dependencies |
 | `CHANGELOG.md` | what each release changed |
+| `.claude-plugin/plugin.json` | the Claude Code plugin: runs `uvx bittensor-mcp==<version>`, declares the hosts it reaches |
+| `.claude-plugin/marketplace.json` | the marketplace that lists the plugin, so the repo installs with `/plugin` |
+| `.claude-plugin/icon.png` | the plugin's icon |
 | `tests/test_offline.py` | offline tests, no network: the helpers, `Chain`, the `subnets` and `read` tools with fakes, and both launch paths |
 | `test_client.py` | the end-to-end test: a real stdio MCP session against the live chain |
 
@@ -81,10 +84,14 @@ A change that breaks one of these needs a discussion first.
    `python -m bittensor_mcp` from an installed package, and
    `python -I server.py` from a checkout, which clients were registered with
    before there was a package. `-I` keeps the script's folder off `sys.path`,
-   so the launcher puts the checkout first itself. Starting the server opens
+   so the launcher puts the checkout first itself, and the Claude Code plugin,
+   which runs `uvx bittensor-mcp==<version>`. Starting the server opens
    no chain connection; the first tool call does.
 8. **Nothing from your machine in tracked files:** no keys, addresses, host
    names, user names or local paths.
+9. **Every host the server reaches is declared,** in `network.hosts` in
+   `plugin.json` and in the README's "What it runs, sends and fetches". A test
+   compares both with the SDK's endpoint lists.
 
 ## Making a change
 
@@ -101,6 +108,12 @@ in results, not only what was added), commit, build from a clean tree
 the commit `vX.Y.Z`. A version number can be published only once, so check
 before uploading: the offline tests pass from the unpacked sdist, and the
 built command starts.
+
+Then, in a commit of its own, move the plugin to the release: set `version`
+in `.claude-plugin/plugin.json` and the `uvx` pin to `bittensor-mcp==X.Y.Z`,
+run `claude plugin validate --strict --profile directory .`, and push. Plugin
+users install from `main`, so the pin must never name a version that is not on
+PyPI yet.
 
 - **Small steps.** One change per pull request; no clean-ups on the side.
 - **Check against the chain.** A new figure is compared at a fixed block with

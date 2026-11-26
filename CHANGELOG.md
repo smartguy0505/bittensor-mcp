@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- The repository is also a Claude Code plugin and a marketplace that lists it (`.claude-plugin/`):
+  `/plugin install bittensor-mcp --marketplace smartguy0505/bittensor-mcp`. The plugin runs the published package
+  with `uvx bittensor-mcp==0.1.2`; the package itself is unchanged.
+- README: what the server runs, sends and fetches, with every host it connects to.
+
 ## 0.1.2 (2026-11-26)
 
 - Fixed: a result that `render` cut could end up longer than `BT_MCP_MAX_CHARS`, by the length of the `truncated`

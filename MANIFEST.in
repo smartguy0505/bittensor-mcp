@@ -1,3 +1,4 @@
 # Files the sdist needs beyond the package: the offline tests start server.py, and the guide and live test belong
 # with the source.
 include server.py test_client.py CONTRIBUTING.md CHANGELOG.md
+recursive-include .claude-plugin *.json *.png

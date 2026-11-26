@@ -1,0 +1,33 @@
+{
+  "name": "bittensor-mcp",
+  "version": "0.1.2",
+  "description": "Read-only Bittensor (TAO) chain data: subnets with prices, pools and net TAO flow, metagraphs, neurons, accounts, hotkeys, and about 100 named chain reads, at the head or any past block. No wallet, no transactions.",
+  "author": {
+    "name": "Smart Guy",
+    "url": "https://github.com/smartguy0505"
+  },
+  "homepage": "https://github.com/smartguy0505/bittensor-mcp",
+  "repository": "https://github.com/smartguy0505/bittensor-mcp",
+  "license": "MIT",
+  "keywords": ["bittensor", "tao", "subtensor", "blockchain", "read-only"],
+  "icon": "./.claude-plugin/icon.png",
+  "documentationUrl": "https://github.com/smartguy0505/bittensor-mcp#readme",
+  "supportUrl": "https://github.com/smartguy0505/bittensor-mcp/issues",
+  "network": {
+    "hosts": [
+      "entrypoint-finney.opentensor.ai",
+      "lite.chain.opentensor.ai",
+      "lite.sub.latent.to",
+      "archive.chain.opentensor.ai",
+      "archive.sub.latent.to",
+      "pypi.org",
+      "files.pythonhosted.org"
+    ]
+  },
+  "mcpServers": {
+    "bittensor": {
+      "command": "uvx",
+      "args": ["bittensor-mcp==0.1.2"]
+    }
+  }
+}

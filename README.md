@@ -8,6 +8,21 @@ and the `bittensor` 11.3 SDK.
 The server never loads a wallet and does not expose any transaction. It cannot sign, stake, transfer or register.
 
 ## Install
+### As a Claude Code plugin
+```
+/plugin install bittensor-mcp --marketplace smartguy0505/bittensor-mcp
+```
+That is one step on Claude Code 2.1.275 or later. On older versions, add the marketplace, then install:
+```
+/plugin marketplace add smartguy0505/bittensor-mcp
+/plugin install bittensor-mcp@smartguy0505
+```
+The plugin starts the server with `uvx bittensor-mcp==<version>`, so it needs [uv](https://docs.astral.sh/uv/) on your
+`PATH`. The first start downloads the package and its dependencies, which takes a few seconds. The server appears in
+`/mcp` as `plugin:bittensor-mcp:bittensor`. Each plugin version runs one published release; to move to a newer one,
+run `/plugin marketplace update smartguy0505` and then `/plugin update bittensor-mcp@smartguy0505`.
+
+### With pip
 Python 3.10 to 3.14. Install it into its own environment; it pins exact versions of its dependencies.
 ```bash
 python3 -m venv ~/bittensor-mcp-env
@@ -17,6 +32,18 @@ python3 -m venv ~/bittensor-mcp-env
 The latest code from GitHub instead: `pip install git+https://github.com/smartguy0505/bittensor-mcp.git`.
 `bittensor-mcp` is the server. An MCP client starts it and talks to it over stdin/stdout; it takes no arguments
 besides `--version` and `--help`, and is configured with environment variables (see Config).
+
+## What it runs, sends and fetches
+- **Runs:** one local process, the server, over stdio. As a plugin it is started with `uvx`, which downloads the
+  package and its pinned dependencies from PyPI (`pypi.org`, `files.pythonhosted.org`) into uv's cache. If no
+  Python 3.10 to 3.14 is installed, uv may also download a Python build.
+- **Connects to:** the Bittensor chain's public WebSocket endpoints (`wss`, port 443) and nothing else. Current
+  state comes from `entrypoint-finney.opentensor.ai`, with `lite.chain.opentensor.ai` and `lite.sub.latent.to` as
+  fallbacks. Historical state comes from `archive.chain.opentensor.ai`, with `archive.sub.latent.to` as fallback.
+  `BT_MCP_NETWORK` and `BT_MCP_ARCHIVE` replace these with endpoints you choose.
+- **Sends:** read-only JSON-RPC requests (storage queries, runtime API calls, block numbers and hashes). They
+  contain what the model asks about, such as subnet ids, block numbers and public SS58 addresses.
+- **Does not:** load a wallet or keys, sign or submit anything, send telemetry, or store data. Logs go to stderr.
 
 ## Tools
 | tool | what it returns |
@@ -97,6 +124,7 @@ installed command instead.
 - a sweep of 94 of the 102 catalog reads.
 
 ## Use with Claude Code
+The plugin (see Install) sets everything up. To register a pip-installed server yourself instead:
 ```bash
 # sessions started in the current folder
 claude mcp add bittensor -- ~/bittensor-mcp-env/bin/bittensor-mcp

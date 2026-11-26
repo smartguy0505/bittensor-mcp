@@ -324,6 +324,46 @@ class ReadTool(unittest.TestCase):
 
 
 
+class Plugin(unittest.TestCase):
+    """The Claude Code plugin in .claude-plugin: pinned to a published release, and every host it reaches declared."""
+
+    def load(self, name: str) -> dict:
+        with open(os.path.join(ROOT, ".claude-plugin", name)) as f:
+            return json.load(f)
+
+    def test_pinned_to_its_own_version(self):
+        p = self.load("plugin.json")
+        self.assertEqual(p["mcpServers"]["bittensor"], {"command": "uvx", "args": [f"bittensor-mcp=={p['version']}"]})
+        as_tuple = lambda v: tuple(int(x) for x in v.split("."))  # noqa: E731
+        self.assertLessEqual(as_tuple(p["version"]), as_tuple(bittensor_mcp.__version__))  # never ahead of the package
+
+    def test_marketplace_lists_it(self):
+        p, m = self.load("plugin.json"), self.load("marketplace.json")
+        self.assertEqual([(e["name"], e["source"]) for e in m["plugins"]], [(p["name"], "./")])
+
+    def test_hosts_declared(self):
+        from urllib.parse import urlparse
+        from bittensor import settings
+        urls = [settings.NETWORKS[n] for n in (server.NETWORK, server.ARCHIVE)]
+        for pool in (settings.FALLBACK_ENDPOINTS, settings.ARCHIVE_ENDPOINTS):
+            for n in (server.NETWORK, server.ARCHIVE):
+                urls += pool.get(n, [])
+        chain = {urlparse(u).hostname for u in urls}
+        hosts = set(self.load("plugin.json")["network"]["hosts"])
+        self.assertEqual(hosts - {"pypi.org", "files.pythonhosted.org"}, chain)
+        with open(os.path.join(ROOT, "README.md")) as f:
+            readme = f.read()
+        self.assertEqual([h for h in sorted(hosts) if f"`{h}`" not in readme], [])
+
+    def test_icon(self):
+        icon = self.load("plugin.json")["icon"]
+        with open(os.path.join(ROOT, icon), "rb") as f:
+            head = f.read(24)
+        width, height = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+        self.assertEqual(head[:8], b"\x89PNG\r\n\x1a\n")
+        self.assertTrue(width == height and 512 <= width <= 2048, (width, height))
+
+
 class Launch(unittest.TestCase):
     """How clients start it. --version exits before the stdio loop, so these need no client and no network."""
 
