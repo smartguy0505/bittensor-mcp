@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: a result that `render` cut could end up longer than `BT_MCP_MAX_CHARS`, by the length of the `truncated`
+  notes added after the cut (since 0.1.0; seen at a 2000 cap: a `net_flow` table of 2,067 chars). The notes now
+  count toward the cap.
+- Fixed: `BT_MCP_LOG` accepts `NOTSET`, `WARN` and `FATAL` again. 0.1.0 took them; 0.1.1 stopped at start.
+
 ## 0.1.1 (2026-11-26)
 
 - `subnets` has the pool in every table: `pool_tao` and `pool_alpha` (the pool's reserves, which the `subnet` tool

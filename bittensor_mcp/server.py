@@ -40,7 +40,7 @@ from pydantic import Field
 
 from bittensor_mcp import __version__
 
-LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "NOTSET", "WARN", "FATAL")  # every name logging takes
 
 
 def _config_error(msg: str) -> None:
@@ -232,22 +232,27 @@ def render(obj: Any) -> str:
     obj = jsonable(obj)
     if not isinstance(obj, dict):
         obj = {"data": obj}
+    prior = obj.get("truncated") if isinstance(obj.get("truncated"), list) else []
     notes: dict[str, tuple[int, int]] = {}
+
+    def dump() -> str:  # the notes count toward the cap, so every size check includes them
+        if not notes:
+            return _dumps(obj)
+        return _dumps({**obj, "truncated": prior + [f"{p}: showing {k} of {t}" for p, (k, t) in notes.items()] + [
+            f"result capped at {MAX_CHARS} chars; narrow with limit/offset/filters"]})
+
+    s = dump()
     for _ in range(40):
-        s = _dumps(obj)
         if len(s) <= MAX_CHARS:
-            break
+            return s
         path, parent, key, node = _target(obj)
         if parent is None or not isinstance(node, (list, dict)) or len(node) <= 1:
-            return s[: MAX_CHARS - 80] + f"... [cut at {MAX_CHARS} chars; narrow the request]"
+            break
         keep = max(1, min(len(node) - 1, int(len(node) * MAX_CHARS * 0.85 / len(s))))
         parent[key] = node[:keep] if isinstance(node, list) else dict(list(node.items())[:keep])
         notes[path] = (keep, notes.get(path, (0, len(node)))[1])
-    if notes:
-        prior = obj.get("truncated") if isinstance(obj.get("truncated"), list) else []
-        obj["truncated"] = prior + [f"{p}: showing {k} of {t}" for p, (k, t) in notes.items()] + [
-            f"result capped at {MAX_CHARS} chars; narrow with limit/offset/filters"]
-    return _dumps(obj)
+        s = dump()
+    return s if len(s) <= MAX_CHARS else s[: MAX_CHARS - 80] + f"... [cut at {MAX_CHARS} chars; narrow the request]"
 
 
 RO = ToolAnnotations(read_only_hint=True, open_world_hint=True)

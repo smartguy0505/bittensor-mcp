@@ -22,7 +22,7 @@ to the public Bittensor endpoints. The code is developed on 3.12.
 ```
 git clone https://github.com/smartguy0505/bittensor-mcp.git && cd bittensor-mcp
 python3 -m venv .venv && .venv/bin/pip install -e .   # the package, editable, with its pinned dependencies
-.venv/bin/python -I -m unittest discover -s tests   # offline, a few seconds
+.venv/bin/python -I -m unittest discover -s tests   # offline, about 20 seconds
 .venv/bin/python -I test_client.py                  # live chain, a few minutes; exit 0 = all checks passed
 ```
 

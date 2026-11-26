@@ -139,6 +139,18 @@ class Serialization(unittest.TestCase):
         self.assertEqual(d["rows"][0]["i"], 0)                               # the head of the list is kept
         self.assertTrue(any(n.startswith("rows: showing ") and n.endswith(" of 500") for n in d["truncated"]))
 
+    def test_render_notes_count_toward_the_cap(self):
+        # The cut can land just under the cap; the truncated notes added after it must not push the result over.
+        old = server.MAX_CHARS
+        server.MAX_CHARS = 2000
+        try:
+            for pad in range(0, 1600, 23):
+                out = server.render({"block": 1, "note": "n" * pad, "rows": [[i, "x" * 30] for i in range(300)]})
+                self.assertLessEqual(len(out), 2000, f"envelope padding {pad}")
+                self.assertIn("truncated", json.loads(out))
+        finally:
+            server.MAX_CHARS = old
+
     def test_render_wraps_non_dict(self):
         self.assertEqual(json.loads(server.render([1, 2])), {"data": [1, 2]})
 
@@ -333,7 +345,8 @@ class Launch(unittest.TestCase):
             lines = r.stderr.strip().splitlines()
             self.assertEqual((r.returncode, len(lines)), (1, 1), r.stderr[-500:])     # one line, no traceback
             self.assertTrue(lines[0].startswith(f"bittensor-mcp: {text}"), lines[0])
-        for env in ({"BT_MCP_LOG": "info"}, {"BT_MCP_MAX_CHARS": "2000"}, {"BT_MCP_MAX_CHARS": ""}):
+        for env in ({"BT_MCP_LOG": "info"}, {"BT_MCP_LOG": "WARN"}, {"BT_MCP_LOG": "fatal"}, {"BT_MCP_LOG": "NOTSET"},
+                    {"BT_MCP_MAX_CHARS": "2000"}, {"BT_MCP_MAX_CHARS": ""}):
             self.assertEqual(self.start(launcher, **env).returncode, 0, env)
 
     def test_checkout_launcher(self):

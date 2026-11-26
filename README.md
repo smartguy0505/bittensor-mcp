@@ -67,10 +67,13 @@ block.
 | `BT_MCP_NETWORK` | `finney` | Head endpoint: `finney`, `test`, `local`, or a `ws://` / `wss://` URL |
 | `BT_MCP_ARCHIVE` | `archive` | Archive endpoint used for historical reads |
 | `BT_MCP_MAX_CHARS` | `30000` | Cap on one result. Larger results are shortened and the cut is noted under `truncated`. |
-| `BT_MCP_LOG` | `WARNING` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, in any case. Logs go to stderr. |
+| `BT_MCP_LOG` | `WARNING` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL` (or Python's other names, `NOTSET`, `WARN`, `FATAL`), in any case. Logs go to stderr. |
 
 An unset or empty variable takes its default. A bad value (`BT_MCP_MAX_CHARS` that is not a whole number of at least
 2000, an unknown log level) stops the server at start with one line on stderr naming the variable.
+
+A small cap shortens more than table rows. Below about 4,000, the `subnet` record loses fields, and at 2,000 a
+`net_flow` table also loses the last keys of its `net_flow` block. Each cut is listed under `truncated`.
 
 ## From a checkout, and tests
 ```bash
