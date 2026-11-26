@@ -308,6 +308,15 @@ class Launch(unittest.TestCase):
         # Registered clients run "python -I server.py". -I keeps the checkout off sys.path; the launcher adds it.
         self.assertEqual(self.version(os.path.join(ROOT, "server.py")), f"bittensor-mcp {bittensor_mcp.__version__}")
 
+    def test_launcher_runs_the_checkout_copy(self):
+        # Even with the package installed (as in CI), the launcher must run the checkout's code, not site-packages'.
+        code = ("import runpy, sys; runpy.run_path(sys.argv[1], run_name='launcher'); "
+                "print(sys.modules['bittensor_mcp'].__file__)")
+        r = subprocess.run([sys.executable, "-I", "-c", code, os.path.join(ROOT, "server.py")], capture_output=True,
+                           text=True, timeout=120, cwd=os.path.dirname(ROOT))
+        self.assertEqual(r.returncode, 0, r.stderr[-500:])
+        self.assertEqual(r.stdout.strip(), os.path.join(ROOT, "bittensor_mcp", "__init__.py"))
+
     def test_main_rejects_unknown_arguments(self):
         with self.assertRaises(SystemExit) as cm:
             server.main(["--nope"])
