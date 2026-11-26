@@ -198,7 +198,9 @@ class FakeView:
     def __init__(self, block: int, acc: dict, ema_block: int):
         self.block, self.acc, self.ema_block = block, acc, ema_block
 
-    def read(self, name: str):
+    def read(self, name: str, **params):
+        if name == "burn":
+            return Balance.from_tao(0.5)
         infos = [SimpleNamespace(netuid=n, burn=Balance.from_tao(0.5), neuron_count=256, tempo=360) for n in (0, 1, 2, 3)]
         return {"subnets": infos, "alpha_prices": {0: 1.0, 1: 0.1, 2: 0.2, 3: 0.3},
                 "subnet_names": {1: "one", 2: "two", 3: "three"}, "token_symbols": {},
@@ -215,6 +217,9 @@ class FakeView:
 class FakeChain:
     def __init__(self, head: int, views: dict):
         self.head, self.views, self.blocks = head, views, []
+
+    def catalog(self):
+        return {"subnet_tao_flows": {"params": {}}, "burn": {"params": {"netuid": "int"}}}
 
     def run(self, fn, block=None):
         return fn(SimpleNamespace(block=self.head))
@@ -259,6 +264,30 @@ class SubnetsTool(unittest.TestCase):
     def test_window_before_genesis(self):
         with self.assertRaises(ToolError):
             self.call(flow_window=5000, block=1000)
+
+
+class ReadTool(unittest.TestCase):
+    """The read tool labels the flow EMA's age on subnet_tao_flows, and only there."""
+
+    def call(self, **kw):
+        old = server.chain
+        server.chain = FakeChain(10_000, {10_000: FakeView(10_000, {}, ema_block=50)})
+        try:
+            return json.loads(server.read(**kw))
+        finally:
+            server.chain = old
+
+    def test_label_on_flow_read(self):
+        d = self.call(name="subnet_tao_flows")
+        self.assertEqual(d["tao_flow_ema"]["last_updated_block"], 50)
+        self.assertIn("not current flow", d["tao_flow_ema"]["warning"])
+        self.assertEqual(d["data"], {"1": 1e9, "2": 2e9})
+
+    def test_no_label_elsewhere(self):
+        d = self.call(name="burn", params={"netuid": 1})
+        self.assertNotIn("tao_flow_ema", d)
+        self.assertEqual(d["data"], 0.5)
+
 
 
 if __name__ == "__main__":

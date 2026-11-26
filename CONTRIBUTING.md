@@ -123,8 +123,8 @@ checks:
 - a sweep of 94 catalog reads, which may fail only with a clean, explained
   error.
 
-It needs the network and reads live chain state, so CI never runs it, so its numbers change from
-run to run. The archive endpoint limits historical work: after many history
+It needs the network and reads live chain state, so CI never runs it, and its
+numbers change from run to run. The archive endpoint limits historical work: after many history
 reads, it refuses with `RpcPolicyError ... budget_exhausted` for a while. Run
 the suite once per change, not in a loop.
 
@@ -183,7 +183,6 @@ starts one), or reconnect the client (`/mcp` in Claude Code).
 
 | what | where | how to tell that it works |
 |---|---|---|
-| the frozen-EMA label on `read("subnet_tao_flows")` too | `read` | the label appears for that read only |
 | why pool change and net flow differ | `_window_flow`, README | a reconciliation that closes at a fixed block |
 | a package with an entry point, while `python -I server.py` keeps working | `pyproject.toml` | `pip install` from git, then both ways start |
 | the `subnet_convictions` read, which the SDK asks for storage the runtime lacks | upstream SDK | the read returns data |

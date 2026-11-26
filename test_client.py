@@ -59,6 +59,7 @@ async def main() -> None:
         async with ClientSession(*streams[:2]) as s:
             init = await s.initialize()
             check(init.server_info.name == "bittensor", f"initialize: server {init.server_info.name}")
+            check("net_flow" in (init.instructions or ""), "instructions point clients to the windowed net flow")
             tools = {t.name: t for t in (await s.list_tools()).tools}
             want = {"chain_status", "list_reads", "describe_read", "read", "subnets", "subnet", "metagraph",
                     "neuron", "account", "hotkey"}
@@ -83,6 +84,10 @@ async def main() -> None:
 
             err, text, d = await call(s, "read", {"name": "subnet_hyperparameters", "params": {"netuid": 19}})
             check(not err and d["data"].get("tempo") and clean(text), f"read subnet_hyperparameters: {len(text)} chars")
+            err, text, d = await call(s, "read", {"name": "subnet_tao_flows"})
+            ema = (d or {}).get("tao_flow_ema") or {}
+            check(not err and ema.get("last_updated_block") and clean(text),
+                  f"read subnet_tao_flows carries tao_flow_ema: {ema}")
             err, text, d = await call(s, "read", {"name": "burn", "params": {"netuid": 19}, "block": -7200})
             check(not err and d["block"] in range(head - 7200 - 5, head - 7200 + 30), f"read burn at -7200: {text[:140]}")
             err, text, _ = await call(s, "read", {"name": "burn", "params": {"netuid": 19, "foo": 1}})

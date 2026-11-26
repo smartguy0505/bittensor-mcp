@@ -228,8 +228,10 @@ mcp = MCPServer(
         "optional `block` (absolute, or negative = relative to head; 7200 blocks ~ 1 day) and reports the block it "
         "read at. Amounts in the SDK's Balance type come out as plain numbers in TAO, or {\"alpha\": x, \"netuid\": "
         "n} for alpha. Plain integers from `read` (and fields the curated tools mark raw) are chain units: rao = "
-        "1e-9 TAO/alpha, u16 fractions /65535, U64F64 /2**64; describe_read documents each read's units. No wallet "
-        "access, no transactions."
+        "1e-9 TAO/alpha, u16 fractions /65535, U64F64 /2**64; describe_read documents each read's units. The chain's "
+        "TAO-flow EMA (subnets' tao_flow_per_day, the subnet_tao_flows read) can be months old: results carry its age "
+        "under tao_flow_ema. For current net TAO flow use subnets(sort_by=\"net_flow\", flow_window=N): stakes "
+        "minus unstakes over the last N blocks, a total, not per day. No wallet access, no transactions."
     ),
 )
 
@@ -311,14 +313,15 @@ def read(
     extra = set(params) - allowed
     if extra:
         raise ToolError(f"{name} takes {sorted(allowed) or 'no parameters'}; unexpected {sorted(extra)}")
-    data, at = chain.run_at(lambda v: v.read(name, **params), block)
+    label = name == "subnet_tao_flows"  # the chain's flow EMA, which can be months old: say how old
+    (data, ema), at = chain.run_at(lambda v: (v.read(name, **params), _ema_blocks(v) if label else None), block)
     data = jsonable(data)
     total = len(data) if isinstance(data, (list, dict)) else None
     if isinstance(data, list) and len(data) > limit:
         data = data[:limit]
     elif isinstance(data, dict) and len(data) > limit:
         data = dict(list(data.items())[:limit])
-    out = _envelope(at, read=name, params=params, data=data)
+    out = _envelope(at, read=name, params=params, **({"tao_flow_ema": _ema_age(ema, at)} if label else {}), data=data)
     if total is not None and total > limit:
         out["truncated"] = [f"data: showing {limit} of {total} (raise limit to see more)"]
     return render(out)
@@ -363,10 +366,7 @@ def subnets(
         if state is not None:
             ema: set[int] | str = set(state["ema"].values())
         else:
-            try:  # only labels the EMA's age; a runtime without this item must not cost the whole table
-                ema = {val[0] for _, val in v.query_map(["SubtensorModule", "SubnetEmaTaoFlow"])}
-            except Exception as e:
-                ema = f"{type(e).__name__}: {e}"[:200]
+            ema = _ema_blocks(v)
         rows = []
         for s in infos:
             n = s.netuid
@@ -435,6 +435,15 @@ def _window_flow(rows: list[dict], s: dict, e: dict, start: int, end: int) -> di
             "root_net_flow_tao": root, "excluded": excluded}
 
 
+def _ema_blocks(v: Any) -> set[int] | str:
+    """The blocks at which SubnetEmaTaoFlow was last updated, or the error as text. It only labels the EMA's age,
+    so a runtime without this item, or a refused request, must not cost the result it labels."""
+    try:
+        return {val[0] for _, val in v.query_map(["SubtensorModule", "SubnetEmaTaoFlow"])}
+    except Exception as e:
+        return f"{type(e).__name__}: {e}"[:200]
+
+
 def _ema_age(blocks: set[int] | str, at: int) -> dict:
     """How old the chain's SubnetEmaTaoFlow is. It is stored as (last_update_block, value) and only moves when the
     runtime updates it, so a stale EMA must be labelled or it reads as current flow."""
@@ -447,7 +456,8 @@ def _ema_age(blocks: set[int] | str, at: int) -> dict:
     out = {"last_updated_block": last, "age_blocks": age, "age_days": round(age / 7200, 1)}
     if age > 7200:
         out["warning"] = (f"the chain has not updated this EMA for {age:,} blocks (~{age / 7200:.0f} days); "
-                          "tao_flow_per_day is that old value, not current flow")
+                          "values taken from it (subnets' tao_flow_per_day, the subnet_tao_flows read) are that "
+                          "old, not current flow; for current flow use subnets with sort_by=\"net_flow\"")
     return out
 
 

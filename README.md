@@ -1,5 +1,7 @@
 # bittensor-mcp
 
+[![tests](https://github.com/smartguy0505/bittensor-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/smartguy0505/bittensor-mcp/actions/workflows/tests.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A read-only MCP server for the Bittensor chain. It runs over stdio and is built on the official `mcp` Python SDK (2.3)
 and the `bittensor` 11.3 SDK.
 
@@ -79,8 +81,9 @@ no chain connection until a tool is called.
 `SubtensorModule.SubnetEmaTaoFlow` had been updated after block 8,466,530, about 153 days earlier. For netuids 51 and 64,
 the value was the same at each daily checkpoint across the 7 days before that check.
 - The `subnets` tool's `tao_flow_per_day`, and the catalog read `subnet_tao_flows`, return that old value.
-- The `subnets` result now carries `tao_flow_ema` with the last-update block and age, and a warning when the EMA is
-  more than a day old. The catalog read has no such label.
+- The `subnets` result, and the result of `read("subnet_tao_flows")`, carry `tao_flow_ema` with the last-update
+  block and age, and a warning when the EMA is more than a day old. The server's instructions tell clients the same,
+  and point them to the windowed net flow.
 - The per-block accumulator `SubnetTaoFlow` (stakes minus unstakes, in rao) is still written. For netuids 51 and
   64 it showed no reset across those 7 days. Its change between two blocks is the real net flow over that window. `subnets(flow_window=N)` reports
   it; see below.
