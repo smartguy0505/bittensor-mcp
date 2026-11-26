@@ -22,7 +22,7 @@ besides `--version` and `--help`, and is configured with environment variables (
 | tool | what it returns |
 |---|---|
 | `chain_status` | Head block, finalized block, runtime spec version, block time, chain timestamp |
-| `subnets` | Every subnet as one table: name, symbol, alpha spot price, burn, neurons, tempo, the chain's TAO flow EMA per day (with its age; see below). Sortable. `flow_window` (in blocks) adds the real net TAO flow over that window, and `sort_by="net_flow"` ranks by it (default window 7200). |
+| `subnets` | Every subnet as one table: name, symbol, alpha spot price, burn, neurons, tempo, the chain's TAO flow EMA per day (with its age; see below), and the pool (`pool_tao`, `pool_alpha`, `alpha_out`). Sortable, by pool size too. `flow_window` (in blocks) adds the real net TAO flow over that window, and `sort_by="net_flow"` ranks by it (default window 7200). |
 | `subnet` | One subnet: identity, owner, pool (tao_in, alpha_in, alpha_out), spot and moving price, registration settings, epoch position, all hyperparameters, neuron counts |
 | `metagraph` | A subnet's neurons as a columns + rows table: incentive, dividends, emission, stake, registration, last update, optional axon. Sort, page, filter by validators/miners/coldkey. |
 | `neuron` | One neuron by uid or hotkey, with its rank by incentive and by stake |
@@ -32,6 +32,18 @@ besides `--version` and `--help`, and is configured with environment variables (
 
 Every tool takes an optional `block`: an absolute block number, or a negative number counted back from the head
 (`-7200` is about one day).
+
+## Examples
+What a model calls for some common questions:
+
+| question | call |
+|---|---|
+| Which subnets have the most TAO in their pools? | `subnets(sort_by="pool", limit=10)` |
+| Which subnets took in the most TAO over the last 7 days? | `subnets(sort_by="net_flow", flow_window=50400, limit=10)` |
+| Which subnets' alpha is priced highest? | `subnets(sort_by="price", limit=11)` (root, netuid 0, is first at 1.0) |
+| Top miners on subnet 19 by incentive | `metagraph(netuid=19, miners_only=True, sort_by="incentive", limit=10)` |
+| Top validators on subnet 19 by stake | `metagraph(netuid=19, validators_only=True, sort_by="stake", limit=10)` |
+| Subnet 19's registration burn a week ago | `read(name="burn", params={"netuid": 19}, block=-50400)` |
 
 Units:
 - TAO amounts are plain numbers in TAO.
@@ -55,7 +67,10 @@ block.
 | `BT_MCP_NETWORK` | `finney` | Head endpoint: `finney`, `test`, `local`, or a `ws://` / `wss://` URL |
 | `BT_MCP_ARCHIVE` | `archive` | Archive endpoint used for historical reads |
 | `BT_MCP_MAX_CHARS` | `30000` | Cap on one result. Larger results are shortened and the cut is noted under `truncated`. |
-| `BT_MCP_LOG` | `WARNING` | Log level. Logs go to stderr. |
+| `BT_MCP_LOG` | `WARNING` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` or `CRITICAL`, in any case. Logs go to stderr. |
+
+An unset or empty variable takes its default. A bad value (`BT_MCP_MAX_CHARS` that is not a whole number of at least
+2000, an unknown log level) stops the server at start with one line on stderr naming the variable.
 
 ## From a checkout, and tests
 ```bash
@@ -117,7 +132,8 @@ window. The end is pinned to one block number, so head reads don't drift. The st
 New columns:
 - `window_net_flow_tao`: the counter's change, a **total over the window**, not per day.
 - `window_pool_change_tao`: the change in the pool's TAO over the same window.
-- `pool_tao`: the pool's TAO at the end block.
+
+`pool_tao`, the pool's TAO at the end block, is in every `subnets` table since 0.1.1.
 
 The envelope's `net_flow` gives the window, `from_block`, `to_block`, a definition, and `excluded`, which maps each
 null row to its reason:

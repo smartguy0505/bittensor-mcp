@@ -37,6 +37,7 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 | `bittensor_mcp/__main__.py` | `python -m bittensor_mcp` |
 | `server.py` | the launcher for a checkout: `python -I server.py` |
 | `pyproject.toml` | the package: name, the command, the three pinned dependencies |
+| `CHANGELOG.md` | what each release changed |
 | `tests/test_offline.py` | offline tests, no network: the helpers, `Chain`, the `subnets` and `read` tools with fakes, and both launch paths |
 | `test_client.py` | the end-to-end test: a real stdio MCP session against the live chain |
 
@@ -94,7 +95,8 @@ default or a dependency (`pyproject.toml` pins exact versions: the server
 uses SDK internals that change between releases).
 
 **Releases** are made by the maintainer: raise `__version__` in
-`bittensor_mcp/__init__.py`, commit, build from a clean tree
+`bittensor_mcp/__init__.py`, add an entry to `CHANGELOG.md` (say what changed
+in results, not only what was added), commit, build from a clean tree
 (`python -m build`), check (`twine check --strict dist/*`), upload, and tag
 the commit `vX.Y.Z`. A version number can be published only once, so check
 before uploading: the offline tests pass from the unpacked sdist, and the
@@ -116,13 +118,14 @@ built command starts.
 
 There are two layers.
 
-`tests/test_offline.py` needs no network and runs in well under a second
-(importing the SDK takes a few more). It uses only `unittest`, with fakes
-for the chain: the retry and refusal paths of `Chain.run_at`,
+`tests/test_offline.py` needs no network and runs in about 20 seconds,
+most of it starting the server in subprocesses. It uses only `unittest`, with
+fakes for the chain: the retry and refusal paths of `Chain.run_at`,
 `resolve_block`, the historical-state check, `jsonable`, `render` under its
-cap, the flow-EMA age, every exclusion of the windowed net flow, and the
-`subnets` and `read` tools' results, and that `python -I server.py` and
-`main` start and stop as they should. Add to it for any helper you change. CI
+cap, the flow-EMA age, every exclusion of the windowed net flow, the
+`subnets` tool's pool columns and sorts, the `read` tool's label, that
+`python -I server.py` and `main` start and stop as they should, and that a bad
+setting stops the server with one clear line. Add to it for any helper you change. CI
 (`.github/workflows/tests.yml`) installs the package on Python 3.10, 3.12 and
 3.14 for every push and pull request, starts the command and the module from
 outside the checkout, and runs these tests.
@@ -135,6 +138,8 @@ outside the checkout, and runs these tests.
 - every tool, and its error paths;
 - a historical read 3,000,000 blocks back;
 - the windowed net flow;
+- the pool columns, against the `subnet` tool's `tao_in`, `alpha_in` and
+  `alpha_out` at one block;
 - a sweep of 94 catalog reads, which may fail only with a clean, explained
   error.
 

@@ -13,8 +13,14 @@ authors = [{ name = "Smart Guy" }]
 requires-python = ">=3.10,<3.15"
 keywords = ["bittensor", "mcp", "model-context-protocol", "subtensor", "tao"]
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries",
 ]
 # Exact pins: the server uses SDK internals (the read catalog, MCPServer) that change between releases.
