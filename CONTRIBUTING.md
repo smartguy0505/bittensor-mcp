@@ -110,7 +110,8 @@ for the chain: the retry and refusal paths of `Chain.run_at`,
 `resolve_block`, the historical-state check, `jsonable`, `render` under its
 cap, the flow-EMA age, every exclusion of the windowed net flow, and the
 `subnets` tool's sort order and pinned blocks. Add to it for any helper you
-change.
+change. CI (`.github/workflows/tests.yml`) runs it on Python 3.10, 3.12 and
+3.14 for every push and pull request.
 
 `test_client.py` starts the server as a subprocess, talks to it over stdio, and
 checks:
@@ -122,7 +123,7 @@ checks:
 - a sweep of 94 catalog reads, which may fail only with a clean, explained
   error.
 
-It needs the network and reads live chain state, so its numbers change from
+It needs the network and reads live chain state, so CI never runs it, so its numbers change from
 run to run. The archive endpoint limits historical work: after many history
 reads, it refuses with `RpcPolicyError ... budget_exhausted` for a while. Run
 the suite once per change, not in a loop.
@@ -182,7 +183,6 @@ starts one), or reconnect the client (`/mcp` in Claude Code).
 
 | what | where | how to tell that it works |
 |---|---|---|
-| CI that runs the offline tests | `.github/workflows` | a green run on a clean machine |
 | the frozen-EMA label on `read("subnet_tao_flows")` too | `read` | the label appears for that read only |
 | why pool change and net flow differ | `_window_flow`, README | a reconciliation that closes at a fixed block |
 | a package with an entry point, while `python -I server.py` keeps working | `pyproject.toml` | `pip install` from git, then both ways start |
