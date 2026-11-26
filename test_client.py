@@ -71,6 +71,7 @@ async def main() -> None:
                     "neuron", "account", "hotkey"}
             check(set(tools) == want, f"tools/list: {sorted(tools)}")
             check(all(t.annotations and t.annotations.read_only_hint for t in tools.values()), "all tools read-only")
+            check(all(t.title for t in tools.values()), f"tool titles: {sorted(t.title or '' for t in tools.values())}")
 
             err, text, d = await call(s, "chain_status")
             check(not err and d["head"] > 9_000_000 and d["finalized"] <= d["head"], f"chain_status: {text[:160]}")
@@ -133,6 +134,7 @@ async def main() -> None:
             err, text, d = await call(s, "subnet", {"netuid": 19})
             check(not err and d["subnet"].get("name") and clean(text) and len(text) <= MAX,
                   f"subnet 19: {d['subnet'].get('name') if d else text[:200]}, {len(text)} chars")
+            tempo19 = d["subnet"].get("tempo") if d else None
             owner_ck = d["subnet"].get("owner_coldkey") if d else None
             owner_hk = d["subnet"].get("owner_hotkey") if d else None
 
@@ -140,6 +142,8 @@ async def main() -> None:
             check(not err and d["returned"] == 64 and clean(text), f"metagraph 19 default: {len(text)} chars, "
                   f"top={rows(d['neurons'])[0]['uid'] if d else '?'} inc={rows(d['neurons'])[0]['incentive'] if d else '?'}")
             top = rows(d["neurons"])[0] if d else {}
+            check(bool(d) and isinstance(d.get("tempo"), int) and d["tempo"] == tempo19 and "7200 / tempo" in d.get("units", ""),
+                  f"metagraph 19 tempo = subnet tool's: {d.get('tempo') if d else '?'}")
             err, text, d = await call(s, "metagraph", {"netuid": 19, "limit": 1024, "include_axons": True})
             check(not err and len(text) <= MAX, f"metagraph 19 limit 1024: {len(text)} chars, "
                                                 f"truncated={d.get('truncated') if d else None}")

@@ -289,7 +289,7 @@ def _table(rows: list[dict]) -> dict:
 
 
 # --------------------------------------------------------------------------------------------- generic catalog tools
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="Chain status", annotations=RO, structured_output=False)
 def chain_status() -> str:
     """Current chain head, finalized block, runtime spec version, block time and chain timestamp."""
     def f(st: Any) -> dict:
@@ -299,7 +299,7 @@ def chain_status() -> str:
     return render(chain.run(f))
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="List chain reads", annotations=RO, structured_output=False)
 def list_reads(category: Annotated[str | None, Field(description="Only this category (case-insensitive), e.g. "
                                                                   "Staking, Subnets, Delegation")] = None) -> str:
     """The SDK's catalog of named read-only chain queries (about 100), grouped by category, with their parameters.
@@ -321,7 +321,7 @@ def _unknown_read(name: str) -> ToolError:
     return ToolError(f"unknown read {name!r}" + (f"; did you mean {close}?" if close else "; see list_reads"))
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="Describe a chain read", annotations=RO, structured_output=False)
 def describe_read(name: Annotated[str, Field(description="Read name from list_reads, e.g. stake_for_coldkey")]) -> str:
     """Full documentation of one named read: description, parameter docs, units and docs URL."""
     r = chain.catalog().get(name)
@@ -330,7 +330,7 @@ def describe_read(name: Annotated[str, Field(description="Read name from list_re
     return render(r)
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="Run a chain read", annotations=RO, structured_output=False)
 def read(
     name: Annotated[str, Field(description="Read name from list_reads, e.g. subnet_hyperparameters")],
     params: Annotated[dict[str, Any] | None, Field(description="Parameters as listed for that read, e.g. "
@@ -375,7 +375,7 @@ SUBNETS_UNITS = ("price: TAO per alpha. burn, pool_tao: TAO. pool_alpha, alpha_o
                  "window. Root (netuid 0) has no pool: its pool columns are null.")
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="All subnets", annotations=RO, structured_output=False)
 def subnets(
     sort_by: Literal["netuid", "price", "pool", "tao_flow", "net_flow", "burn", "neurons"] = "netuid",
     limit: Annotated[int, Field(ge=1, le=1024)] = 200,
@@ -588,7 +588,7 @@ def _neurons(mg: dict, include_axons: bool) -> list[dict]:
     return rows
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="One subnet", annotations=RO, structured_output=False)
 def subnet(netuid: Annotated[int, Field(ge=0, le=65535)], block: Block = None) -> str:
     """One subnet's state: identity, owner, pool (tao_in TAO, alpha_in/alpha_out), per-block emission, spot and
     moving price, registration (burn TAO, limits, immunity), weights settings, epoch position, all
@@ -612,12 +612,17 @@ def subnet(netuid: Annotated[int, Field(ge=0, le=65535)], block: Block = None) -
     return render(_envelope(at, netuid=netuid, **data))
 
 
+NEURON_UNITS = ("incentive, dividends, consensus: shares of the subnet, 0..1. emission_alpha_per_epoch: alpha the "
+                "neuron received at the subnet's last epoch. Epochs come about every `tempo` blocks (12 s each; 7200 "
+                "blocks ~ 1 day), and tempo differs between subnets, so compare emissions across subnets per day: "
+                "emission_alpha_per_epoch x 7200 / tempo.")
+
 SORT_KEYS = {"uid": "uid", "incentive": "incentive", "dividends": "dividends", "emission": "emission_alpha_per_epoch",
              "stake": "total_stake", "alpha_stake": "alpha_stake", "registered": "registered_at_block",
              "last_update": "last_update"}
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="Subnet neurons", annotations=RO, structured_output=False)
 def metagraph(
     netuid: Annotated[int, Field(ge=0, le=65535)],
     sort_by: Literal["uid", "incentive", "dividends", "emission", "stake", "alpha_stake", "registered",
@@ -632,7 +637,8 @@ def metagraph(
 ) -> str:
     """A subnet's neurons as a table (columns + rows), sorted (descending except uid/registered) and paged. Per neuron: uid, hotkey,
     coldkey, active, validator_permit, incentive / dividends / consensus (0..1), emission (alpha per epoch),
-    alpha/tao/total stake, registration block, last weight update; optionally axon ip:port."""
+    alpha/tao/total stake, registration block, last weight update; optionally axon ip:port. The result gives the
+    subnet's tempo, the epoch length in blocks, which differs between subnets (see its units note)."""
     if validators_only and miners_only:
         raise ToolError("validators_only and miners_only exclude each other")
     mg, at = chain.run_at(lambda v: v.read("metagraph", netuid=netuid), block)
@@ -647,18 +653,20 @@ def metagraph(
     asc = sort_by in ("uid", "registered")
     rows.sort(key=lambda r: (r[key] is None, r[key] if asc else -(r[key] or 0)))
     page = rows[offset: offset + limit]
-    return render(_envelope(at, netuid=netuid, name=mg.get("name"), matched=len(rows), offset=offset,
-                            returned=len(page), sort_by=sort_by, neurons=_table(page)))
+    return render(_envelope(at, netuid=netuid, name=mg.get("name"), tempo=mg.get("tempo"), units=NEURON_UNITS,
+                            matched=len(rows), offset=offset, returned=len(page), sort_by=sort_by,
+                            neurons=_table(page)))
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="One neuron", annotations=RO, structured_output=False)
 def neuron(
     netuid: Annotated[int, Field(ge=0, le=65535)],
     uid: Annotated[int | None, Field(ge=0)] = None,
     hotkey: Annotated[str | None, Field(description="Hotkey SS58 (instead of uid)")] = None,
     block: Block = None,
 ) -> str:
-    """One neuron on a subnet by uid or hotkey, with its rank by incentive and by stake among all neurons."""
+    """One neuron on a subnet by uid or hotkey, with its rank by incentive and by stake among all neurons. Its
+    emission is per epoch; the result gives the subnet's tempo, the epoch length in blocks."""
     if (uid is None) == (hotkey is None):
         raise ToolError("give exactly one of uid or hotkey")
     mg, at = chain.run_at(lambda v: v.read("metagraph", netuid=netuid), block)
@@ -673,7 +681,8 @@ def neuron(
     r["rank_by_incentive"] = next(i for i, x in enumerate(by_inc, 1) if x["uid"] == r["uid"])
     r["rank_by_stake"] = next(i for i, x in enumerate(by_stake, 1) if x["uid"] == r["uid"])
     r["of"] = len(rows)
-    return render(_envelope(at, netuid=netuid, name=mg.get("name"), neuron=r))
+    return render(_envelope(at, netuid=netuid, name=mg.get("name"), tempo=mg.get("tempo"), units=NEURON_UNITS,
+                            neuron=r))
 
 
 def _side_reads(v: Any, reads: list[tuple[str, str, dict]]) -> dict:
@@ -688,7 +697,7 @@ def _side_reads(v: Any, reads: list[tuple[str, str, dict]]) -> dict:
     return out
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="Coldkey account", annotations=RO, structured_output=False)
 def account(coldkey: Annotated[str, Field(description="Coldkey SS58 address")], block: Block = None) -> str:
     """A coldkey's position: free TAO balance, every stake position (hotkey, subnet, alpha), the stake marked to
     TAO at spot prices, the hotkeys it owns, and its on-chain identity."""
@@ -705,7 +714,7 @@ def account(coldkey: Annotated[str, Field(description="Coldkey SS58 address")], 
     return render(_envelope(at, coldkey=coldkey, **data))
 
 
-@mcp.tool(annotations=RO, structured_output=False)
+@mcp.tool(title="Hotkey", annotations=RO, structured_output=False)
 def hotkey(hotkey: Annotated[str, Field(description="Hotkey SS58 address")], block: Block = None) -> str:
     """A hotkey's owner coldkey, the subnets it is registered on (with its uid on each), delegate status and take,
     and identity."""

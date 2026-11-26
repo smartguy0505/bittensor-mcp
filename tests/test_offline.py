@@ -221,7 +221,14 @@ class FakeView:
         infos = [SimpleNamespace(netuid=n, burn=Balance.from_tao(0.5), neuron_count=256, tempo=360) for n in (0, 1, 2, 3)]
         return {"subnets": infos, "alpha_prices": {0: 1.0, 1: 0.1, 2: 0.2, 3: 0.3},
                 "subnet_names": {1: "one", 2: "two", 3: "three"}, "token_symbols": {},
-                "subnet_tao_flows": {1: 1e9, 2: 2e9}}[name]
+                "subnet_tao_flows": {1: 1e9, 2: 2e9}, "metagraph": self.metagraph()}[name]
+
+    @staticmethod
+    def metagraph() -> dict:
+        r = int(server.RAO)
+        return {"name": "nineteen", "tempo": 7200, "hotkeys": ["h0", "h1"], "coldkeys": ["c0", "c1"],
+                "active": [True, True], "validator_permit": [True, False], "incentives": [0, 65535],
+                "dividends": [65535, 0], "emission": [2 * r, 1 * r], "total_stake": [100 * r, 1 * r]}
 
     def query_map(self, path: list):
         item = path[1]
@@ -298,6 +305,44 @@ class SubnetsTool(unittest.TestCase):
     def test_window_before_genesis(self):
         with self.assertRaises(ToolError):
             self.call(flow_window=5000, block=1000)
+
+
+class NeuronTools(unittest.TestCase):
+    """metagraph and neuron say the subnet's tempo: emission is per epoch, and epochs differ between subnets."""
+
+    def call(self, tool, **kw):
+        old = server.chain
+        server.chain = FakeChain(10_000, {10_000: FakeView(10_000, {}, ema_block=50)})
+        try:
+            return json.loads(getattr(server, tool)(**kw))
+        finally:
+            server.chain = old
+
+    def test_metagraph_tempo(self):
+        d = self.call("metagraph", netuid=19)
+        self.assertEqual(d["tempo"], 7200)
+        self.assertIn("x 7200 / tempo", d["units"])
+        rows = [dict(zip(d["neurons"]["columns"], r)) for r in d["neurons"]["rows"]]
+        self.assertEqual([(r["uid"], r["emission_alpha_per_epoch"]) for r in rows], [(1, 1.0), (0, 2.0)])
+
+    def test_neuron_tempo(self):
+        d = self.call("neuron", netuid=19, uid=0)
+        self.assertEqual((d["tempo"], d["neuron"]["emission_alpha_per_epoch"], d["neuron"]["rank_by_stake"]), (7200, 2.0, 1))
+        self.assertIn("emission_alpha_per_epoch", d["units"])
+
+
+class ToolList(unittest.TestCase):
+    """What a client sees: every tool has a title and is marked read-only."""
+
+    def test_titles_and_read_only(self):
+        import asyncio
+        tools = asyncio.run(server.mcp.list_tools())
+        self.assertEqual(len(tools), 10)
+        for t in tools:
+            self.assertTrue(t.title, t.name)
+            self.assertTrue(t.annotations and t.annotations.read_only_hint, t.name)
+            self.assertFalse(t.annotations.destructive_hint, t.name)
+        self.assertEqual(len({t.title for t in tools}), len(tools))
 
 
 class ReadTool(unittest.TestCase):
