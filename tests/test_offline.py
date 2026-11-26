@@ -1,19 +1,24 @@
-"""Offline tests: no network. They cover the pure helpers and the error handling of Chain with fakes.
+"""Offline tests: no network. They cover the pure helpers and the error handling of Chain with fakes, and that the
+server starts from a checkout and as a package.
 
     python -I -m unittest discover -s tests -v
 
-The end-to-end test against the live chain is test_client.py at the root.
+They test the checkout's code, even when the package is installed. The end-to-end test against the live chain is
+test_client.py at the root.
 """
 import json
 import math
 import os
+import subprocess
 import sys
 import unittest
 from types import SimpleNamespace
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
 import bittensor as bt  # noqa: E402
-import server  # noqa: E402
+import bittensor_mcp  # noqa: E402
+from bittensor_mcp import server  # noqa: E402
 from bittensor.balance import Balance  # noqa: E402
 from mcp.server.mcpserver.exceptions import ToolError  # noqa: E402
 
@@ -288,6 +293,28 @@ class ReadTool(unittest.TestCase):
         self.assertNotIn("tao_flow_ema", d)
         self.assertEqual(d["data"], 0.5)
 
+
+
+class Launch(unittest.TestCase):
+    """How clients start it. --version exits before the stdio loop, so these need no client and no network."""
+
+    def version(self, *args: str) -> str:
+        r = subprocess.run([sys.executable, "-I", *args, "--version"], capture_output=True, text=True, timeout=120,
+                           cwd=ROOT)
+        self.assertEqual(r.returncode, 0, r.stderr[-500:])
+        return r.stdout.strip()
+
+    def test_checkout_launcher(self):
+        # Registered clients run "python -I server.py". -I keeps the checkout off sys.path; the launcher adds it.
+        self.assertEqual(self.version(os.path.join(ROOT, "server.py")), f"bittensor-mcp {bittensor_mcp.__version__}")
+
+    def test_main_rejects_unknown_arguments(self):
+        with self.assertRaises(SystemExit) as cm:
+            server.main(["--nope"])
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_server_reports_version(self):
+        self.assertEqual(server.mcp.version, bittensor_mcp.__version__)
 
 
 if __name__ == "__main__":

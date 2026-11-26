@@ -7,6 +7,16 @@ and the `bittensor` 11.3 SDK.
 
 The server never loads a wallet and does not expose any transaction. It cannot sign, stake, transfer or register.
 
+## Install
+Python 3.10 to 3.14. Install it into its own environment; it pins exact versions of its dependencies.
+```bash
+python3 -m venv ~/bittensor-mcp-env
+~/bittensor-mcp-env/bin/pip install git+https://github.com/smartguy0505/bittensor-mcp.git
+~/bittensor-mcp-env/bin/bittensor-mcp --version
+```
+`bittensor-mcp` is the server. An MCP client starts it and talks to it over stdin/stdout; it takes no arguments
+besides `--version` and `--help`, and is configured with environment variables (see Config).
+
 ## Tools
 | tool | what it returns |
 |---|---|
@@ -46,13 +56,16 @@ block.
 | `BT_MCP_MAX_CHARS` | `30000` | Cap on one result. Larger results are shortened and the cut is noted under `truncated`. |
 | `BT_MCP_LOG` | `WARNING` | Log level. Logs go to stderr. |
 
-## Install and test
+## From a checkout, and tests
 ```bash
 git clone https://github.com/smartguy0505/bittensor-mcp.git && cd bittensor-mcp
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -e .
 .venv/bin/python -I -m unittest discover -s tests   # offline, no network
 .venv/bin/python -I test_client.py                  # against the live chain
 ```
+In a checkout, `.venv/bin/python -I server.py` also starts the server, without the package being installed (its
+dependencies are). `test_client.py --cmd ~/bittensor-mcp-env/bin/bittensor-mcp` runs the live checks against an
+installed command instead.
 `tests/test_offline.py` checks the helpers, and `Chain` and the `subnets` tool with fakes, without a network.
 
 `test_client.py` opens a real stdio MCP session and checks:
@@ -67,12 +80,14 @@ python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
 ## Use with Claude Code
 ```bash
 # sessions started in the current folder
-claude mcp add bittensor -- /path/to/bittensor-mcp/.venv/bin/python -I /path/to/bittensor-mcp/server.py
+claude mcp add bittensor -- ~/bittensor-mcp-env/bin/bittensor-mcp
 # every session
-claude mcp add -s user bittensor -- /path/to/bittensor-mcp/.venv/bin/python -I /path/to/bittensor-mcp/server.py
+claude mcp add -s user bittensor -- ~/bittensor-mcp-env/bin/bittensor-mcp
 # undo (run in the same folder, or use -s user)
 claude mcp remove bittensor -s local
 ```
+From a checkout, register `/path/to/bittensor-mcp/.venv/bin/python -I /path/to/bittensor-mcp/server.py` instead.
+Registrations made that way before the package existed keep working.
 The tools appear as `mcp__bittensor__<tool>`. Each session starts its own server process, about 88 MB idle. It opens
 no chain connection until a tool is called.
 

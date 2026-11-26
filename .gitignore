@@ -1,6 +1,10 @@
 .venv/
+.venv-*/
 __pycache__/
 *.pyc
 *.new
 *.bak*
+build/
+dist/
+*.egg-info/
 LOCAL-NOTES.md

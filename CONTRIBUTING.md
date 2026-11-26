@@ -21,7 +21,7 @@ to the public Bittensor endpoints. The code is developed on 3.12.
 
 ```
 git clone https://github.com/smartguy0505/bittensor-mcp.git && cd bittensor-mcp
-python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+python3 -m venv .venv && .venv/bin/pip install -e .   # the package, editable, with its pinned dependencies
 .venv/bin/python -I -m unittest discover -s tests   # offline, a few seconds
 .venv/bin/python -I test_client.py                  # live chain, a few minutes; exit 0 = all checks passed
 ```
@@ -32,12 +32,15 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 
 | file | what it is |
 |---|---|
-| `server.py` | the whole server, one file |
-| `tests/test_offline.py` | offline tests, no network: the helpers, and `Chain` and the `subnets` tool with fakes |
+| `bittensor_mcp/server.py` | the whole server, one module; `main` is the `bittensor-mcp` command |
+| `bittensor_mcp/__init__.py` | `__version__`, the one place the version is set |
+| `bittensor_mcp/__main__.py` | `python -m bittensor_mcp` |
+| `server.py` | the launcher for a checkout: `python -I server.py` |
+| `pyproject.toml` | the package: name, the command, the three pinned dependencies |
+| `tests/test_offline.py` | offline tests, no network: the helpers, `Chain`, the `subnets` and `read` tools with fakes, and both launch paths |
 | `test_client.py` | the end-to-end test: a real stdio MCP session against the live chain |
-| `requirements.txt` | the three pinned dependencies |
 
-`server.py`, from the top:
+`bittensor_mcp/server.py`, from the top:
 
 | section | what it does |
 |---|---|
@@ -46,7 +49,7 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 | serialization | `jsonable` (SDK objects to JSON), `render` (the size cap, with notes on what was cut), `_table` (columns + rows) |
 | generic catalog tools | `chain_status`, `list_reads`, `describe_read`, `read` |
 | curated tools | `subnets` (with the flow-EMA age and the windowed net flow), `subnet`, `metagraph`, `neuron`, `account`, `hotkey` |
-| `main` | `mcp.run("stdio")` |
+| `main` | parses `--version` / `--help`, then `mcp.run("stdio")` |
 
 ## What must stay true
 
@@ -73,11 +76,12 @@ A change that breaks one of these needs a discussion first.
    `object at 0x...`) in results.
 6. **Results stay under `BT_MCP_MAX_CHARS`.** Lists of rows are columnar
    tables, and what `render` cuts is noted under `truncated`.
-7. **`server.py` stays one file at the root that starts as
-   `python -I server.py`.** Clients are registered with that command. `-I`
-   keeps the script's folder off `sys.path`, so it can only import installed
-   packages. Starting the server opens no chain connection; the first tool call
-   does.
+7. **Every way of starting keeps working:** the `bittensor-mcp` command and
+   `python -m bittensor_mcp` from an installed package, and
+   `python -I server.py` from a checkout, which clients were registered with
+   before there was a package. `-I` keeps the script's folder off `sys.path`,
+   so the launcher puts the checkout first itself. Starting the server opens
+   no chain connection; the first tool call does.
 8. **Nothing from your machine in tracked files:** no keys, addresses, host
    names, user names or local paths.
 
@@ -86,7 +90,9 @@ A change that breaks one of these needs a discussion first.
 For anything that is more than a fix, open an issue first and say what you
 want to change, why, and how you will show that it works. Always ask before
 you add or remove a tool, rename or remove a field of a result, or change a
-default or a dependency (`requirements.txt` pins exact versions).
+default or a dependency (`pyproject.toml` pins exact versions: the server
+uses SDK internals that change between releases). A release raises
+`__version__` in `bittensor_mcp/__init__.py`.
 
 - **Small steps.** One change per pull request; no clean-ups on the side.
 - **Check against the chain.** A new figure is compared at a fixed block with
@@ -109,12 +115,15 @@ There are two layers.
 for the chain: the retry and refusal paths of `Chain.run_at`,
 `resolve_block`, the historical-state check, `jsonable`, `render` under its
 cap, the flow-EMA age, every exclusion of the windowed net flow, and the
-`subnets` tool's sort order and pinned blocks. Add to it for any helper you
-change. CI (`.github/workflows/tests.yml`) runs it on Python 3.10, 3.12 and
-3.14 for every push and pull request.
+`subnets` and `read` tools' results, and that `python -I server.py` and
+`main` start and stop as they should. Add to it for any helper you change. CI
+(`.github/workflows/tests.yml`) installs the package on Python 3.10, 3.12 and
+3.14 for every push and pull request, starts the command and the module from
+outside the checkout, and runs these tests.
 
-`test_client.py` starts the server as a subprocess, talks to it over stdio, and
-checks:
+`test_client.py` starts the server as a subprocess (the checkout's
+`python -I server.py`, or with `--cmd` an installed command such as
+`bittensor-mcp`), talks to it over stdio, and checks:
 
 - the handshake, the tool list, and the read-only annotations;
 - every tool, and its error paths;
@@ -124,10 +133,10 @@ checks:
   error.
 
 It needs the network and reads live chain state, so CI never runs it, and its
-numbers change from run to run. The public endpoints limit historical work: after many history
-reads, one refuses with `RpcPolicyError ... budget_exhausted` for a while (the error doesn't say which
-endpoint). Run
-the suite once per change, not in a loop.
+numbers change from run to run. The public endpoints limit historical work:
+after many history reads, one refuses with `RpcPolicyError ... budget_exhausted`
+for a while (the error doesn't say which endpoint). Run the suite once per
+change, not in a loop.
 
 What is expected of tests for a change:
 
@@ -154,7 +163,7 @@ Pushed commits are not rewritten: no force pushes to `main`.
 
 All of the above applies. Also:
 
-**Read in this order:** the README, the section of `server.py` you work on, the
+**Read in this order:** the README, the section of `bittensor_mcp/server.py` you work on, the
 tool docstrings next to it, `test_client.py`.
 
 **Ask the person you work for before you:** commit, push or open a pull
@@ -177,15 +186,16 @@ for private text; list what you did not do or could not verify. Commits that an
 agent wrote carry a `Co-Authored-By` line.
 
 **Good to know:** a running MCP client keeps the server process it started.
-After you change `server.py`, test with a fresh process (`test_client.py`
-starts one), or reconnect the client (`/mcp` in Claude Code).
+After you change the server, test with a fresh process (`test_client.py`
+starts one), or reconnect the client (`/mcp` in Claude Code). A package
+installed without `-e` keeps the code it was installed with.
 
 ## What to work on
 
 | what | where | how to tell that it works |
 |---|---|---|
 | why pool change and net flow differ | `_window_flow`, README | a reconciliation that closes at a fixed block |
-| a package with an entry point, while `python -I server.py` keeps working | `pyproject.toml` | `pip install` from git, then both ways start |
+| a release on PyPI (the name `bittensor-mcp` was free on 2026-11-26) | `pyproject.toml`, a release workflow | `pip install bittensor-mcp` in a clean environment, then `test_client.py --cmd bittensor-mcp` |
 | the `subnet_convictions` read, which the SDK asks for storage the runtime lacks | upstream SDK | the read returns data |
 
 Found a bug? Open an issue with the commit, the tool call, the block, and what

@@ -6,13 +6,18 @@ curated tools (subnets, subnet, metagraph, neuron, account, hotkey) whose output
 Read-only by design: it never loads a wallet and does not expose the SDK's transactions (Subtensor.tools(),
 execute_tool, plan, execute). Nothing here can sign or spend.
 
+Start: the bittensor-mcp command, python -m bittensor_mcp, or python -I server.py from a checkout. It speaks MCP on
+stdin/stdout; --version prints the version.
+
 Config (environment):
   BT_MCP_NETWORK    chain for head reads: finney (default), test, local, or a ws:// / wss:// URL
   BT_MCP_ARCHIVE    archive endpoint for historical reads the primary cannot prove (default: archive)
   BT_MCP_MAX_CHARS  hard cap on one tool result, in characters (default 30000, roughly 10k tokens)
+  BT_MCP_LOG        log level for stderr (default WARNING)
 """
 from __future__ import annotations
 
+import argparse
 import dataclasses
 import difflib
 import enum
@@ -32,6 +37,8 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import Field
+
+from bittensor_mcp import __version__
 
 logging.basicConfig(stream=sys.stderr, level=os.environ.get("BT_MCP_LOG", "WARNING"))
 log = logging.getLogger("bittensor-mcp")
@@ -222,6 +229,7 @@ def render(obj: Any) -> str:
 RO = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 mcp = MCPServer(
     "bittensor",
+    version=__version__,
     instructions=(
         "Read-only access to the Bittensor (TAO) chain. Start with the curated tools (subnets, subnet, metagraph, "
         "neuron, account, hotkey); for anything else, list_reads -> describe_read -> read. Every tool takes an "
@@ -674,7 +682,14 @@ def hotkey(hotkey: Annotated[str, Field(description="Hotkey SS58 address")], blo
     return render(_envelope(at, hotkey=hotkey, **data))
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    """The bittensor-mcp command. Without arguments it serves MCP over stdio until the client closes it."""
+    p = argparse.ArgumentParser(
+        prog="bittensor-mcp",
+        description="Read-only MCP server for the Bittensor chain, over stdio. An MCP client starts it; configure it "
+                    "with the BT_MCP_NETWORK, BT_MCP_ARCHIVE, BT_MCP_MAX_CHARS and BT_MCP_LOG environment variables.")
+    p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
+    p.parse_args(argv)
     mcp.run("stdio")
 
 

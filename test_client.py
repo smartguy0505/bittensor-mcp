@@ -1,7 +1,9 @@
 """End-to-end check over a real MCP stdio connection: handshake, tools/list, every tool, error paths, a sweep of
 every no-parameter and netuid-only catalog read, and the size cap.
 
-    .venv/bin/python -I test_client.py [--out DIR]     # exit 0 = all checks passed
+    .venv/bin/python -I test_client.py [--out DIR] [--cmd COMMAND]     # exit 0 = all checks passed
+
+It starts the checkout's server (python -I server.py), or with --cmd an installed command such as bittensor-mcp.
 """
 import json
 import os
@@ -13,6 +15,7 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = sys.argv[sys.argv.index("--out") + 1] if "--out" in sys.argv else None
+CMD = sys.argv[sys.argv.index("--cmd") + 1] if "--cmd" in sys.argv else None
 MAX = int(os.environ.get("BT_MCP_MAX_CHARS", "30000"))
 fails: list[str] = []
 
@@ -54,7 +57,10 @@ def clean(text: str) -> bool:
 
 
 async def main() -> None:
-    params = StdioServerParameters(command=sys.executable, args=["-I", os.path.join(HERE, "server.py")], cwd=HERE)
+    if CMD:
+        params = StdioServerParameters(command=CMD, args=[], cwd=HERE)
+    else:
+        params = StdioServerParameters(command=sys.executable, args=["-I", os.path.join(HERE, "server.py")], cwd=HERE)
     async with stdio_client(params) as streams:
         async with ClientSession(*streams[:2]) as s:
             init = await s.initialize()
