@@ -113,3 +113,6 @@ earlier SDK script. That script reads the same counter with the same formula, so
 the counter means. A window that starts beyond finney's retention needs the archive endpoint, which
 rate-limits historical work, so long windows can fail with `RpcPolicyError`. A 1,200,000-block window (start before
 the freeze) measured no rows, as intended: 104 were excluded for the EMA reason, the rest as root or re-registered.
+
+## License
+MIT: see [LICENSE](LICENSE). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
