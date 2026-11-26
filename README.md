@@ -11,9 +11,10 @@ The server never loads a wallet and does not expose any transaction. It cannot s
 Python 3.10 to 3.14. Install it into its own environment; it pins exact versions of its dependencies.
 ```bash
 python3 -m venv ~/bittensor-mcp-env
-~/bittensor-mcp-env/bin/pip install git+https://github.com/smartguy0505/bittensor-mcp.git
+~/bittensor-mcp-env/bin/pip install bittensor-mcp
 ~/bittensor-mcp-env/bin/bittensor-mcp --version
 ```
+The latest code from GitHub instead: `pip install git+https://github.com/smartguy0505/bittensor-mcp.git`.
 `bittensor-mcp` is the server. An MCP client starts it and talks to it over stdin/stdout; it takes no arguments
 besides `--version` and `--help`, and is configured with environment variables (see Config).
 

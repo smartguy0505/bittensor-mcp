@@ -201,7 +201,7 @@ installed without `-e` keeps the code it was installed with.
 | what | where | how to tell that it works |
 |---|---|---|
 | why pool change and net flow differ | `_window_flow`, README | a reconciliation that closes at a fixed block |
-| a release on PyPI (the name `bittensor-mcp` was free on 2026-11-26) | `pyproject.toml`, a release workflow | `pip install bittensor-mcp` in a clean environment, then `test_client.py --cmd bittensor-mcp` |
+| releases through PyPI trusted publishing, so no token is needed | a workflow in `.github/workflows`, the PyPI project's settings | pushing a tag publishes, and `pip install bittensor-mcp==X.Y.Z` works |
 | the `subnet_convictions` read, which the SDK asks for storage the runtime lacks | upstream SDK | the read returns data |
 
 Found a bug? Open an issue with the commit, the tool call, the block, and what
