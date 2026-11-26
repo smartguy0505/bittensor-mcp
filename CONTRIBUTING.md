@@ -91,8 +91,14 @@ For anything that is more than a fix, open an issue first and say what you
 want to change, why, and how you will show that it works. Always ask before
 you add or remove a tool, rename or remove a field of a result, or change a
 default or a dependency (`pyproject.toml` pins exact versions: the server
-uses SDK internals that change between releases). A release raises
-`__version__` in `bittensor_mcp/__init__.py`.
+uses SDK internals that change between releases).
+
+**Releases** are made by the maintainer: raise `__version__` in
+`bittensor_mcp/__init__.py`, commit, build from a clean tree
+(`python -m build`), check (`twine check --strict dist/*`), upload, and tag
+the commit `vX.Y.Z`. A version number can be published only once, so check
+before uploading: the offline tests pass from the unpacked sdist, and the
+built command starts.
 
 - **Small steps.** One change per pull request; no clean-ups on the side.
 - **Check against the chain.** A new figure is compared at a fixed block with

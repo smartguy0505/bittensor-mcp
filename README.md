@@ -1,6 +1,6 @@
 # bittensor-mcp
 
-[![tests](https://github.com/smartguy0505/bittensor-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/smartguy0505/bittensor-mcp/actions/workflows/tests.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![tests](https://github.com/smartguy0505/bittensor-mcp/actions/workflows/tests.yml/badge.svg)](https://github.com/smartguy0505/bittensor-mcp/actions/workflows/tests.yml) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/smartguy0505/bittensor-mcp/blob/main/LICENSE)
 
 A read-only MCP server for the Bittensor chain. It runs over stdio and is built on the official `mcp` Python SDK (2.3)
 and the `bittensor` 11.3 SDK.
@@ -137,4 +137,4 @@ once, without asking again. A 1,200,000-block window (start before
 the freeze) measured no rows, as intended: 104 were excluded for the EMA reason, the rest as root or re-registered.
 
 ## License
-MIT: see [LICENSE](LICENSE). How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md).
+MIT: see [LICENSE](https://github.com/smartguy0505/bittensor-mcp/blob/main/LICENSE). How to contribute: [CONTRIBUTING.md](https://github.com/smartguy0505/bittensor-mcp/blob/main/CONTRIBUTING.md).
