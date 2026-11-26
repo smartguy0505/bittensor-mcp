@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2 (2026-11-26)
 
 - Fixed: a result that `render` cut could end up longer than `BT_MCP_MAX_CHARS`, by the length of the `truncated`
   notes added after the cut (since 0.1.0; seen at a 2000 cap: a `net_flow` table of 2,067 chars). The notes now
