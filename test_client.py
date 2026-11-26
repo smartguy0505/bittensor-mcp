@@ -114,6 +114,21 @@ async def main() -> None:
                   and ("warning" in ema) == (ema["age_blocks"] > 7200), f"subnets tao_flow_ema: {ema}")
             err, text, d = await call(s, "subnets")
             check(not err and len(text) <= MAX, f"subnets all: {d.get('count') if d else '?'} rows, {len(text)} chars")
+            # pool columns: ranked, root last, and equal to the subnet tool's tao_in / alpha_in / alpha_out at one block
+            pin = head - 5
+            err, text, d = await call(s, "subnets", {"sort_by": "pool", "limit": 1024, "block": pin})
+            rs = rows(d["subnets"]) if d else []
+            pools = [r["pool_tao"] for r in rs if r["pool_tao"] is not None]
+            check(not err and pools == sorted(pools, reverse=True) and rs[-1]["netuid"] == 0 and rs[-1]["pool_tao"] is None,
+                  f"subnets sort_by=pool: top {[(r['netuid'], r['pool_tao']) for r in rs[:3]]}, root last")
+            r19 = next((r for r in rs if r["netuid"] == 19), {})
+            err, text, h = await call(s, "subnet", {"netuid": 19, "block": pin})
+            h = (h or {}).get("subnet", {})
+            same = (not err and r19 and abs(r19["pool_tao"] - h["tao_in"]) < 1e-4
+                    and abs(r19["pool_alpha"] - h["alpha_in"]["alpha"]) < 1e-4
+                    and abs(r19["alpha_out"] - h["alpha_out"]["alpha"]) < 1e-4)
+            check(bool(same), f"subnets pool columns = subnet tool at block {pin}: "
+                              f"{[r19.get(k) for k in ('pool_tao', 'pool_alpha', 'alpha_out')]}")
 
             err, text, d = await call(s, "subnet", {"netuid": 19})
             check(not err and d["subnet"].get("name") and clean(text) and len(text) <= MAX,

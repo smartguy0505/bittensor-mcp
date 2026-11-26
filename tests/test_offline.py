@@ -178,8 +178,8 @@ class WindowFlow(unittest.TestCase):
 
     def test_measured_row(self):
         rows, out = self.run_flow()
-        self.assertEqual((rows[1]["window_net_flow_tao"], rows[1]["window_pool_change_tao"], rows[1]["pool_tao"]),
-                         (3.0, 4.0, 104.0))
+        self.assertEqual((rows[1]["window_net_flow_tao"], rows[1]["window_pool_change_tao"]), (3.0, 4.0))
+        self.assertNotIn("pool_tao", rows[1])                         # the subnets tool sets it, from one read
         self.assertEqual(rows[4]["window_net_flow_tao"], 4.0)        # no start entry for a counter means 0
         self.assertEqual((out["from_block"], out["to_block"], out["window_blocks"]), (1000, 2000, 1000))
 
@@ -215,8 +215,11 @@ class FakeView:
         item = path[1]
         if item == "SubnetEmaTaoFlow":
             return [(n, (self.ema_block, {"bits": 0})) for n in (1, 2, 3)]
-        return list({"SubnetTaoFlow": self.acc, "SubnetTAO": {n: 10 * int(server.RAO) for n in (0, 1, 2, 3)},
-                     "NetworkRegisteredAt": {1: 1, 2: 1, 3: 1}}[item].items())
+        r = int(server.RAO)
+        return list({"SubnetTaoFlow": self.acc, "NetworkRegisteredAt": {1: 1, 2: 1, 3: 1},
+                     "SubnetTAO": {0: 5_000_000 * r, 1: 10 * r, 2: 30 * r, 3: 20 * r},   # root's is its stake
+                     "SubnetAlphaIn": {1: 100 * r, 2: 300 * r, 3: 200 * r},
+                     "SubnetAlphaOut": {1: 50 * r, 2: 60 * r, 3: 70 * r}}[item].items())
 
 
 class FakeChain:
@@ -259,6 +262,20 @@ class SubnetsTool(unittest.TestCase):
         self.assertEqual(d["net_flow"]["root_net_flow_tao"], 9.0)
         self.assertIn("warning", d["tao_flow_ema"])                  # the EMA is 9,950 blocks old
 
+    def test_pool_columns_and_sort(self):
+        d, _ = self.call(sort_by="pool")
+        rows = [dict(zip(d["subnets"]["columns"], r)) for r in d["subnets"]["rows"]]
+        self.assertEqual([(r["netuid"], r["pool_tao"], r["pool_alpha"], r["alpha_out"]) for r in rows],
+                         [(2, 30.0, 300.0, 60.0), (3, 20.0, 200.0, 70.0), (1, 10.0, 100.0, 50.0), (0, None, None, None)])
+        self.assertIn("pool_alpha, alpha_out: alpha", d["units"])
+
+    def test_pool_tao_same_with_window(self):
+        plain, _ = self.call(sort_by="netuid")
+        window, _ = self.call(sort_by="netuid", flow_window=7200)
+        col = lambda d: [r[d["subnets"]["columns"].index("pool_tao")] for r in d["subnets"]["rows"]]  # noqa: E731
+        self.assertEqual(col(plain), col(window))
+        self.assertEqual(col(window), [None, 10.0, 30.0, 20.0])
+
     def test_no_window_no_flow_columns(self):
         d, blocks = self.call(sort_by="price", limit=2)
         self.assertEqual(blocks, [10_000])
@@ -298,11 +315,26 @@ class ReadTool(unittest.TestCase):
 class Launch(unittest.TestCase):
     """How clients start it. --version exits before the stdio loop, so these need no client and no network."""
 
+    def start(self, *args: str, **env: str) -> subprocess.CompletedProcess:
+        return subprocess.run([sys.executable, "-I", *args, "--version"], capture_output=True, text=True, timeout=120,
+                              cwd=ROOT, env={**os.environ, **env})
+
     def version(self, *args: str) -> str:
-        r = subprocess.run([sys.executable, "-I", *args, "--version"], capture_output=True, text=True, timeout=120,
-                           cwd=ROOT)
+        r = self.start(*args)
         self.assertEqual(r.returncode, 0, r.stderr[-500:])
         return r.stdout.strip()
+
+    def test_bad_config_is_one_clear_line(self):
+        launcher = os.path.join(ROOT, "server.py")
+        for env, text in (({"BT_MCP_MAX_CHARS": "abc"}, "BT_MCP_MAX_CHARS must be a whole number of at least 2000"),
+                          ({"BT_MCP_MAX_CHARS": "100"}, "BT_MCP_MAX_CHARS must be a whole number of at least 2000"),
+                          ({"BT_MCP_LOG": "loud"}, "BT_MCP_LOG must be one of DEBUG, INFO, WARNING")):
+            r = self.start(launcher, **env)
+            lines = r.stderr.strip().splitlines()
+            self.assertEqual((r.returncode, len(lines)), (1, 1), r.stderr[-500:])     # one line, no traceback
+            self.assertTrue(lines[0].startswith(f"bittensor-mcp: {text}"), lines[0])
+        for env in ({"BT_MCP_LOG": "info"}, {"BT_MCP_MAX_CHARS": "2000"}, {"BT_MCP_MAX_CHARS": ""}):
+            self.assertEqual(self.start(launcher, **env).returncode, 0, env)
 
     def test_checkout_launcher(self):
         # Registered clients run "python -I server.py". -I keeps the checkout off sys.path; the launcher adds it.

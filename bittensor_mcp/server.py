@@ -40,12 +40,36 @@ from pydantic import Field
 
 from bittensor_mcp import __version__
 
-logging.basicConfig(stream=sys.stderr, level=os.environ.get("BT_MCP_LOG", "WARNING"))
+LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+
+
+def _config_error(msg: str) -> None:
+    """A bad setting stops the server at start with one line on stderr, which MCP clients show in their logs."""
+    sys.exit(f"bittensor-mcp: {msg}")
+
+
+def _env_int(name: str, default: int, least: int) -> int:
+    raw = os.environ.get(name, "").strip()
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        value = least - 1
+    if value < least:
+        _config_error(f"{name} must be a whole number of at least {least}, got {raw!r}")
+    return value
+
+
+_level = os.environ.get("BT_MCP_LOG", "").strip().upper() or "WARNING"
+if _level not in LOG_LEVELS:
+    _config_error(f"BT_MCP_LOG must be one of {', '.join(LOG_LEVELS)}, got {os.environ.get('BT_MCP_LOG')!r}")
+logging.basicConfig(stream=sys.stderr, level=_level)
 log = logging.getLogger("bittensor-mcp")
 
-NETWORK = os.environ.get("BT_MCP_NETWORK", "finney")
-ARCHIVE = os.environ.get("BT_MCP_ARCHIVE", "archive")
-MAX_CHARS = int(os.environ.get("BT_MCP_MAX_CHARS", "30000"))
+NETWORK = os.environ.get("BT_MCP_NETWORK", "").strip() or "finney"
+ARCHIVE = os.environ.get("BT_MCP_ARCHIVE", "").strip() or "archive"
+MAX_CHARS = _env_int("BT_MCP_MAX_CHARS", 30000, 2000)  # render needs room for the envelope and its notes
 U16 = 65535.0
 RAO = 1e9
 
@@ -338,19 +362,25 @@ def read(
 # --------------------------------------------------------------------------------------------- curated tools
 FlowWindow = Annotated[int | None, Field(ge=1, le=2_000_000, description=(
     "Also measure net TAO flow over this many blocks ending at `block` (7200 ~ 1 day, 50400 ~ 7 days): TAO staked "
-    "minus unstaked, from the chain's per-subnet counter. Adds window_net_flow_tao, window_pool_change_tao and "
-    "pool_tao columns. Defaults to 7200 when sort_by is net_flow."))]
+    "minus unstaked, from the chain's per-subnet counter. Adds window_net_flow_tao and window_pool_change_tao "
+    "columns. Defaults to 7200 when sort_by is net_flow."))]
+
+SUBNETS_UNITS = ("price: TAO per alpha. burn, pool_tao: TAO. pool_alpha, alpha_out: alpha of that subnet. "
+                 "tao_flow_per_day: TAO per day. window_net_flow_tao, window_pool_change_tao: TAO, totals over the "
+                 "window. Root (netuid 0) has no pool: its pool columns are null.")
 
 
 @mcp.tool(annotations=RO, structured_output=False)
 def subnets(
-    sort_by: Literal["netuid", "price", "tao_flow", "net_flow", "burn", "neurons"] = "netuid",
+    sort_by: Literal["netuid", "price", "pool", "tao_flow", "net_flow", "burn", "neurons"] = "netuid",
     limit: Annotated[int, Field(ge=1, le=1024)] = 200,
     flow_window: FlowWindow = None,
     block: Block = None,
 ) -> str:
     """Every subnet as one table (columns + rows): name, token symbol, alpha spot price (TAO per alpha), registration burn (TAO),
-    neuron count, tempo, and the chain's net TAO flow EMA (TAO per day; negative = net outflow). The chain updates
+    neuron count, tempo, the chain's net TAO flow EMA (TAO per day; negative = net outflow), and the pool: pool_tao
+    and pool_alpha are its reserves (the subnet tool's tao_in and alpha_in), alpha_out is the subnet's alpha held
+    outside the pool. sort_by="pool" ranks by pool_tao; root (netuid 0) has no pool, so it comes last. The chain updates
     that EMA lazily: `tao_flow_ema` in the result gives its last-update block and age, and warns when it is stale
     (on spec 493 it has not moved since block 8,466,530), so check it before reading tao_flow_per_day as current.
 
@@ -375,13 +405,19 @@ def subnets(
             ema: set[int] | str = set(state["ema"].values())
         else:
             ema = _ema_blocks(v)
+        tao = state["pool"] if state is not None else _storage_map(v, "SubnetTAO")  # one read per block and item
+        alpha_in, alpha_out = _storage_map(v, "SubnetAlphaIn"), _storage_map(v, "SubnetAlphaOut")
         rows = []
         for s in infos:
             n = s.netuid
             flow = flows.get(n)
+            pool = n != 0  # root's SubnetTAO is the stake on root, not a pool
             rows.append({"netuid": n, "name": names.get(n), "symbol": symbols.get(n), "price": prices.get(n),
                          "burn": jsonable(s.burn), "neurons": s.neuron_count, "tempo": s.tempo,
-                         "tao_flow_per_day": None if flow is None else round(flow / RAO * 7200, 4)})
+                         "tao_flow_per_day": None if flow is None else round(flow / RAO * 7200, 4),
+                         "pool_tao": round(tao.get(n, 0) / RAO, 4) if pool else None,
+                         "pool_alpha": round(alpha_in.get(n, 0) / RAO, 4) if pool else None,
+                         "alpha_out": round(alpha_out.get(n, 0) / RAO, 4) if pool else None})
         return rows, ema, state
     (rows, ema, end_state), at = chain.run_at(f, end)
     extra: dict[str, Any] = {}
@@ -389,23 +425,27 @@ def subnets(
         start = at - flow_window
         start_state, _ = chain.run_at(_flow_state, start)
         extra["net_flow"] = _window_flow(rows, start_state, end_state, start, at)
-    key = {"netuid": "netuid", "price": "price", "tao_flow": "tao_flow_per_day", "net_flow": "window_net_flow_tao",
-           "burn": "burn", "neurons": "neurons"}[sort_by]
+    key = {"netuid": "netuid", "price": "price", "pool": "pool_tao", "tao_flow": "tao_flow_per_day",
+           "net_flow": "window_net_flow_tao", "burn": "burn", "neurons": "neurons"}[sort_by]
     rows.sort(key=lambda r: (r[key] is None, r[key] if sort_by == "netuid" else -(r[key] or 0)))
-    return render(_envelope(at, count=len(rows), sort_by=sort_by, tao_flow_ema=_ema_age(ema, at), **extra,
-                            subnets=_table(rows[:limit])))
+    return render(_envelope(at, count=len(rows), sort_by=sort_by, units=SUBNETS_UNITS, tao_flow_ema=_ema_age(ema, at),
+                            **extra, subnets=_table(rows[:limit])))
+
+
+def _storage_map(v: Any, item: str) -> dict:
+    """One SubtensorModule storage map at the view's block, as {key: raw value}. Missing keys mean the default."""
+    return dict(v.query_map(["SubtensorModule", item]))
 
 
 def _flow_state(v: Any) -> dict[str, dict]:
     """The storage the windowed net flow is computed from, read at one block. Missing map entries mean 0 / unset."""
-    def q(item: str) -> dict:
-        return dict(v.query_map(["SubtensorModule", item]))
-    return {"acc": q("SubnetTaoFlow"), "pool": q("SubnetTAO"), "reg": q("NetworkRegisteredAt"),
-            "ema": {n: val[0] for n, val in q("SubnetEmaTaoFlow").items()}}
+    return {"acc": _storage_map(v, "SubnetTaoFlow"), "pool": _storage_map(v, "SubnetTAO"),
+            "reg": _storage_map(v, "NetworkRegisteredAt"),
+            "ema": {n: val[0] for n, val in _storage_map(v, "SubnetEmaTaoFlow").items()}}
 
 
 def _window_flow(rows: list[dict], s: dict, e: dict, start: int, end: int) -> dict:
-    """Adds window_net_flow_tao, window_pool_change_tao and pool_tao to each row; returns the envelope block.
+    """Adds window_net_flow_tao and window_pool_change_tao to each row; returns the envelope block.
 
     SubnetTaoFlow adds every stake and subtracts every unstake (rao). When the runtime updates the EMA it resets the
     counter, so the difference between two blocks is the window's net flow only if the EMA's update block is the same
@@ -416,7 +456,6 @@ def _window_flow(rows: list[dict], s: dict, e: dict, start: int, end: int) -> di
     root: float | None = None
     for r in rows:
         n = r["netuid"]
-        r["pool_tao"] = round(e["pool"].get(n, 0) / RAO, 4)
         reg_s, reg_e = s["reg"].get(n), e["reg"].get(n)
         why = None
         if n == 0:
