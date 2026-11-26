@@ -1,0 +1,83 @@
+name: release
+
+# Publishes to PyPI with trusted publishing (OpenID Connect): PyPI checks a short-lived token GitHub issues to this
+# workflow, so no PyPI token is stored anywhere. See CONTRIBUTING.md, "Releases".
+#
+# - A tag vX.Y.Z builds, checks and publishes that version.
+# - A push to main that changes packaging runs the same build and checks without publishing, so a broken package
+#   shows up before a release. (GitHub does not apply path filters to tag pushes.)
+on:
+  push:
+    tags: ["v*"]
+    branches: [main]
+    paths:
+      - pyproject.toml
+      - MANIFEST.in
+      - bittensor_mcp/__init__.py
+      - .github/workflows/release.yml
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build and check
+    runs-on: ubuntu-latest
+    steps:
+      # Actions are pinned to release commits; the comment names the release.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: the tag names the package version, and the changelog has it
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(python -I -c 'import re; print(re.search(r"__version__ = \"(.+)\"", open("bittensor_mcp/__init__.py").read()).group(1))')
+          test "$GITHUB_REF_NAME" = "v$version" || { echo "::error::tag $GITHUB_REF_NAME is not v$version (__version__)"; exit 1; }
+          grep -q "^## $version " CHANGELOG.md || { echo "::error::CHANGELOG.md has no '## $version' entry"; exit 1; }
+      - name: build, and check the metadata
+        run: |
+          python -m pip install build==1.6.1 twine==7.0.0
+          python -m build
+          twine check --strict dist/*
+          ls -l dist
+      - name: the wheel installs in a fresh environment and starts, outside the checkout
+        working-directory: ${{ runner.temp }}
+        run: |
+          python -m venv wv
+          wv/bin/pip install "$GITHUB_WORKSPACE"/dist/*.whl
+          wv/bin/bittensor-mcp --version
+          wv/bin/python -I -m bittensor_mcp --version
+      - name: the offline tests pass from the unpacked sdist
+        working-directory: ${{ runner.temp }}
+        run: |
+          mkdir sdist
+          tar -xzf "$GITHUB_WORKSPACE"/dist/*.tar.gz -C sdist
+          cd sdist/*/
+          "$RUNNER_TEMP"/wv/bin/python -I -m unittest discover -s tests
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7.0.2
+        with:
+          name: dist
+          path: dist/
+          if-no-files-found: error
+
+  publish:
+    name: publish to PyPI
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    # PyPI accepts uploads only from this workflow file in this environment (the trusted publisher's settings).
+    # Give the environment a required reviewer in the repository settings to approve each release by hand.
+    environment:
+      name: pypi
+      url: https://pypi.org/project/bittensor-mcp/
+    permissions:
+      id-token: write  # lets the job request the token PyPI checks; nothing else
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086  # v1.14.3

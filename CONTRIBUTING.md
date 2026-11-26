@@ -38,6 +38,8 @@ To use it from Claude Code, see "Use with Claude Code" in the README.
 | `server.py` | the launcher for a checkout: `python -I server.py` |
 | `pyproject.toml` | the package: name, the command, the three pinned dependencies |
 | `CHANGELOG.md` | what each release changed |
+| `.github/workflows/tests.yml` | CI: the offline tests on Python 3.10, 3.12 and 3.14 |
+| `.github/workflows/release.yml` | releases: a `vX.Y.Z` tag builds, checks and publishes to PyPI |
 | `.claude-plugin/plugin.json` | the Claude Code plugin: runs `uvx bittensor-mcp==<version>`, declares the hosts it reaches |
 | `.claude-plugin/marketplace.json` | the marketplace that lists the plugin, so the repo installs with `/plugin` |
 | `.claude-plugin/icon.png` | the plugin's icon |
@@ -101,13 +103,28 @@ you add or remove a tool, rename or remove a field of a result, or change a
 default or a dependency (`pyproject.toml` pins exact versions: the server
 uses SDK internals that change between releases).
 
-**Releases** are made by the maintainer: raise `__version__` in
-`bittensor_mcp/__init__.py`, add an entry to `CHANGELOG.md` (say what changed
-in results, not only what was added), commit, build from a clean tree
-(`python -m build`), check (`twine check --strict dist/*`), upload, and tag
-the commit `vX.Y.Z`. A version number can be published only once, so check
-before uploading: the offline tests pass from the unpacked sdist, and the
-built command starts.
+**Releases** are made by the maintainer and published by GitHub Actions
+(`.github/workflows/release.yml`) with PyPI trusted publishing, so there is
+no PyPI token:
+
+1. Raise `__version__` in `bittensor_mcp/__init__.py`, and turn
+   "Unreleased" in `CHANGELOG.md` into `## X.Y.Z (date)` (say what changed in
+   results, not only what was added). Commit, push, and wait for CI to pass.
+2. Run `test_client.py` once on that commit.
+3. Tag it and push the tag: `git tag -a vX.Y.Z -m "bittensor-mcp X.Y.Z"`, then
+   `git push origin vX.Y.Z`. The workflow checks that the tag equals
+   `__version__` and that the changelog has the entry, builds, runs
+   `twine check --strict`, installs the wheel in a fresh environment and
+   starts it, runs the offline tests from the unpacked sdist, and only then
+   publishes. If the `pypi` environment has a required reviewer, it waits for
+   that approval.
+4. Check that `pip install bittensor-mcp==X.Y.Z` works.
+
+A version number can be published only once. If the workflow fails before
+publishing, fix the cause on `main`, then delete the tag (locally and with
+`git push origin :refs/tags/vX.Y.Z`) and tag the fixed commit. The same
+build and checks also run, without publishing, on every push to `main` that
+changes `pyproject.toml`, `MANIFEST.in`, the version or the workflow.
 
 Then, in a commit of its own, move the plugin to the release: set `version`
 in `.claude-plugin/plugin.json` and the `uvx` pin to `bittensor-mcp==X.Y.Z`,
@@ -219,7 +236,6 @@ installed without `-e` keeps the code it was installed with.
 | what | where | how to tell that it works |
 |---|---|---|
 | why pool change and net flow differ | `_window_flow`, README | a reconciliation that closes at a fixed block |
-| releases through PyPI trusted publishing, so no token is needed | a workflow in `.github/workflows`, the PyPI project's settings | pushing a tag publishes, and `pip install bittensor-mcp==X.Y.Z` works |
 | the `subnet_convictions` read, which the SDK asks for storage the runtime lacks | upstream SDK | the read returns data |
 
 Found a bug? Open an issue with the commit, the tool call, the block, and what

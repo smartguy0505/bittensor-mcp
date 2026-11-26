@@ -10,6 +10,8 @@
   epoch is about `tempo` blocks, which differs between subnets (360 on most, 7200 on subnet 19), so emissions
   from two subnets compare only per day: `emission_alpha_per_epoch x 7200 / tempo`.
 - Every tool has a title for clients to show.
+- Releases are published by GitHub Actions with PyPI trusted publishing (`.github/workflows/release.yml`): pushing a
+  `vX.Y.Z` tag builds, checks and publishes. No PyPI token is used.
 - README: the plugin's server reads the `BT_MCP_*` variables from Claude Code's environment; where Claude Code logs
   a failed start; updates need a restart.
 
